@@ -1,0 +1,1 @@
+- I've setup latest nextjs, Read 'package.json' and install the required packages and start building the project
