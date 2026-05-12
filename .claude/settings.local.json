@@ -4,7 +4,12 @@
       "Bash(npm install *)",
       "Bash(npx prisma *)",
       "Bash(npx tsc *)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "mcp__supabase__get_project",
+      "Bash(node scripts/test-connection.mjs)",
+      "Bash(node scripts/inspect-schema.mjs)",
+      "Bash(node scripts/reset-public.mjs)",
+      "Bash(node -e \"const c=require\\('@gltf-transform/core'\\);const e=require\\('@gltf-transform/extensions'\\);const f=require\\('@gltf-transform/functions'\\);const d=require\\('draco3dgltf'\\);console.log\\('core:',Object.keys\\(c\\).filter\\(k=>k.includes\\('IO'\\)||k.includes\\('Doc'\\)\\)\\);console.log\\('extensions Draco:',!!e.KHRDracoMeshCompression\\);console.log\\('functions draco:',typeof f.draco\\);console.log\\('draco3dgltf:',Object.keys\\(d\\)\\);\")"
     ]
   },
   "enableAllProjectMcpServers": true,
