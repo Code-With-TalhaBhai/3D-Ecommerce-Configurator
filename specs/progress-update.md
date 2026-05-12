@@ -3,14 +3,15 @@
 Update this file whenever the current phase, active feature, or implementation state changes.
 
 ## Current Phase
-- Sprint 7-8 (Marketplace Core) — in progress: cart page + persistence complete; checkout / Stripe / orders / search pending
+- Sprint 7-8 (Marketplace Core) — complete
 
 ## Current Goal
-- Sprint 7-8 next slice: `/checkout` flow + Stripe Checkout Session + order persistence
+- Sprint 9-10 (Advanced features: Supabase Realtime chat, admin promo-code management, vendor edit/delete) — not started
 
 ## Completed
 
 ### Sprint 1-2: Foundation
+
 
 - Feature 01: Package Setup — Installed and pinned: `next-auth@beta` (v5 for Next 16 App Router), `@auth/prisma-adapter`, `@prisma/client` + `@prisma/adapter-pg` (Prisma 7 driver-adapter mode), `@supabase/supabase-js`, `@reduxjs/toolkit` + `react-redux`, `zod`, `bcryptjs`, `react-hook-form` + `@hookform/resolvers`, `clsx`, `tailwind-merge`, `lucide-react`. Dev: `prisma`, `dotenv`, `@types/bcryptjs`. `tsconfig.json` paths kept at `"@/*": ["./*"]` (root-relative, no `src/`).
 - Feature 02: Prisma Schema — `prisma/schema.prisma` defines all 8 entities from AGENTS.md §7 (`User`, `Vendor`, `Product`, `ProductVariant`, `Order`, `OrderItem`, `PromoCode`, `Message`) plus NextAuth adapter tables (`Account`, `Session`, `VerificationToken`). Enums: `Role` (ADMIN/VENDOR/CUSTOMER), `ProductStatus` (PENDING/APPROVED/REJECTED), `OrderStatus`, `DiscountType`. Generator outputs to `app/generated/prisma/` (gitignored).
@@ -43,40 +44,45 @@ Update this file whenever the current phase, active feature, or implementation s
 - Feature 23: Performance Marker & LOD-Lite — Configurator measures `performance.now()` from mount to the viewer's `onFirstFrame` callback; in development the elapsed ms is printed in a corner overlay and logged. `Navigator.connection.effectiveType` / `saveData` is probed on mount; on slow-2g/2g/3g (or Save Data flag) the configurator shows an amber "Slow connection detected" hint. True multi-LOD generation is deferred until Sprint 7-8+.
 - Feature 24: Public Header & Cart Badge — `components/layout/public-header.tsx` (server component, sticky, backdrop-blur) renders on `/products/*` routes via `app/products/layout.tsx`. Shows brand, Browse link, cart icon with item-count badge (`components/layout/cart-badge.tsx` reads from Redux cart), and role-aware right side (sign in / sign up for guests; Vendor/Admin console + sign out for authenticated users). Landing page CTA updated to "Browse products" + secondary action that flips between "Sell on 3D Marketplace" (guest) and "Vendor console" (signed-in).
 
-### Sprint 7-8: Marketplace Core (in progress)
+### Sprint 7-8: Marketplace Core
 
 - Feature 25: Cart Persistence — `store/persistence.ts` exposes `hydrateCartFromStorage(store)` and `subscribeCartToStorage(store)`. Storage key `3dmkt:cart:v1` (versioned for easy future migration). Persisted shape is validated with a Zod schema (`productId`, `vendorId`, `title`, `price ≥ 0`, `quantity > 0`, optional `thumbnailUrl` / `variantId`); corrupt payloads are wiped, not rehydrated. Subscriber diffs `JSON.stringify({ items })` against the previous write so non-cart actions don't re-serialize. SSR-safe — both functions short-circuit when `window` is undefined. Wired through `app/providers.tsx`: `useEffect` hydrates on mount, returns the subscription's unsubscribe.
-- Feature 26: Cart Page — `app/cart/page.tsx` is a server-rendered shell that mounts the `CartView` client island; `app/cart/layout.tsx` reuses `PublicHeader`. `cart-view.tsx` reads from Redux: per-row thumbnail (placeholder until thumbnails ship), title, "Variant configured" indicator when `variantId` set, per-unit price; quantity stepper (`Minus` / `Plus`, clamped 1-99, decrements disabled at 1); row subtotal computed live; per-row trash button dispatches `removeItem` keyed on `productId + variantId`. Order summary card is sticky on `lg` (top-20), shows item count, formatted subtotal, "calculated at checkout" placeholders for shipping/tax, and a Checkout CTA that dead-ends gracefully (`/checkout` route lands next slice). Clear-cart is a two-tap confirm to avoid accidental wipes. `Intl.NumberFormat` USD formatter shared across rows + totals. Empty state with shopping-bag icon and `/products` CTA. `/cart` was already linked from the cart badge in `PublicHeader`; the previous 404 is fixed.
+- Feature 26: Cart Page — `app/cart/page.tsx` is a server-rendered shell that mounts the `CartView` client island; `app/cart/layout.tsx` reuses `PublicHeader`. `cart-view.tsx` reads from Redux: per-row thumbnail (placeholder until thumbnails ship), title, "Variant configured" indicator when `variantId` set, per-unit price; quantity stepper (`Minus` / `Plus`, clamped 1-99, decrements disabled at 1); row subtotal computed live; per-row trash button dispatches `removeItem` keyed on `productId + variantId`. Order summary card is sticky on `lg` (top-20), shows item count, formatted subtotal, "calculated at checkout" placeholders for shipping/tax, and a Checkout CTA. Clear-cart is a two-tap confirm to avoid accidental wipes. `Intl.NumberFormat` USD formatter shared across rows + totals. Empty state with shopping-bag icon and `/products` CTA.
+- Feature 27: Order Schema Migration — Migration `20260512000000_add_order_stripe_fields` adds four columns to `Order`: `subtotal` (Decimal 10,2, NOT NULL — pre-discount total captured at order creation), `discountAmount` (Decimal 10,2 default 0), `promoCode` (nullable string — the code used, captured for audit), and `stripeSessionId` (nullable, `@unique` — links the order to its Stripe Checkout Session for webhook reconciliation). Generated via `prisma migrate diff --from-config-datasource` because non-interactive shells can't drive `prisma migrate dev`. Applied with `prisma migrate deploy` and client regenerated.
+- Feature 28: Stripe Client + Cart Validator — `lib/stripe.ts` exposes lazy `getStripe()` and `getStripeWebhookSecret()` so the SDK doesn't initialize at build time when keys aren't set. `lib/cart-validation.ts` exports `validateCart(items)` which re-fetches each product from the DB, rejects unapproved or insufficient-stock items via a `CartValidationError` discriminated union, collapses duplicate `(productId, variantId)` rows (defense against client-side malformation), and returns server-trusted unit prices via `product.price.toString()`. `resolvePromoCode(code, subtotal)` looks up `PromoCode` by uppercased code, applies PERCENT or FIXED discount, clamps to subtotal, and rejects expired codes.
+- Feature 29: Checkout Session API — `POST /api/checkout/session` (Node runtime) auth-checks, parses `{ items, promoCode }` via Zod, runs `validateCart` and `resolvePromoCode`, creates an `Order` in PENDING status with all `OrderItem` rows in the same `prisma.order.create` call (unit prices captured at purchase time), then creates a Stripe Checkout Session with USD `price_data` line items and a Stripe-side `coupon` (created on-the-fly via `stripe.coupons.create({ duration: "once", amount_off })`) when there's a discount. `success_url` carries `{CHECKOUT_SESSION_ID}` for post-redirect order lookup; `cancel_url` includes the order ID. Order is updated with `stripeSessionId` after the session is created so the webhook can find it.
+- Feature 30: Stripe Webhook — `POST /api/stripe/webhook` (Node runtime, `dynamic: "force-dynamic"`) reads the raw body via `req.text()` (Stripe's signature requires unparsed bytes), verifies via `stripe.webhooks.constructEvent`, and handles `checkout.session.completed` / `async_payment_succeeded` (flip Order → PAID and decrement each `Product.stock` in a single transaction; idempotent — skips if Order isn't still PENDING) and `checkout.session.expired` / `async_payment_failed` (Order → CANCELLED via `updateMany` filtered to PENDING). Returns 500 on DB blip so Stripe retries; other event types are no-ops.
+- Feature 31: Checkout Pages — `app/checkout/layout.tsx` (server, defense-in-depth `auth()` check on top of `proxy.ts`) wraps `/checkout/*` with `PublicHeader`. `/checkout/page.tsx` mounts `CheckoutClient` (client island) which reads cart from Redux, shows a per-line order summary, a promo-code input that auto-uppercases, and a "Continue to payment" button that POSTs to the session API and `window.location.href`s to the Stripe URL. Empty cart shows a CTA back to `/products`. `/checkout/success/page.tsx` reads `session_id` from searchParams, looks up the Order by `stripeSessionId`, verifies ownership, renders the line items + totals (including discount line when promoCode is set), and shows "Payment processing" copy if the webhook hasn't yet flipped to PAID. `cart-clearer.tsx` is a tiny client child that dispatches `clearCart` once on mount. `/checkout/cancel/page.tsx` is a friendly "no charge made" landing with links back to cart and products.
+- Feature 32: Purchase History — `app/account/layout.tsx` enforces auth and renders `PublicHeader`. `app/account/orders/page.tsx` fetches `prisma.order.findMany({ where: { customerId: session.user.id }, include: items.product })`, lists them newest-first as cards with a color-coded status badge per `OrderStatus`, a CUID for support, line items linked back to `/products/[slug]`, and the captured `promoCode` + `total`. Empty state with CTA to `/products`. PublicHeader gains an "Orders" link visible whenever a user is signed in (any role).
+- Feature 33: Product Search & Price Filter — `app/products/search-bar.tsx` (client) is a controlled form with `q`, `min`, `max` inputs that pushes a serialized query string onto `/products`. `app/products/page.tsx` now accepts async `searchParams`, builds a `Prisma.ProductWhereInput` with `status: APPROVED` plus optional `OR` on title/description (`mode: "insensitive"`) and `price.gte` / `price.lte`. Result count rendered above the grid. "No matches" empty state copy differs from "no products live yet". Clear button (visible when filters are active) wipes all params back to `/products`.
 
 ## In Progress
 
-- Sprint 7-8: cart slice + persistence + page done; checkout, Stripe, orders, promo codes, search/filter, purchase history all remaining.
+- None.
 
 ## Next Up
 
-### Sprint 7-8 remaining slices
-- `/checkout` page (auth-gated via existing `proxy.ts` matcher) with shipping form and order summary read from Redux.
-- Stripe Checkout Session integration: `POST /api/checkout/session` creates the session and returns a redirect URL; webhook at `/api/stripe/webhook` flips Order to `PAID` and decrements `Product.stock`.
-- Order persistence via `Order` + `OrderItem` rows (model already in schema). Server action drains the Redux cart on success.
-- Promo code application: `PromoCode` lookup + percent/fixed discount calculation on the order summary.
-- Product search & filtering on `/products` (Postgres `ilike` or full-text; vendor / price range filters).
-- `/account/orders` purchase history (auth-gated).
+### Sprint 9-10: Advanced Features (per AGENTS.md §3.4, §3.6)
+- Supabase Realtime chat scoped per product listing (customer ↔ vendor), backed by the existing `Message` model. Real-time subscribe via the existing `@supabase/supabase-js` client; persist to Postgres via Prisma.
+- Admin promo-code management UI under `/admin/promos` (create / list / expire). Today the `PromoCode` table can only be edited via SQL.
+- Vendor product edit & delete flows. Today `/vendor/products` is read-only after upload.
+- Vendor admin-promotion UI on `/admin/users` so role changes don't require SQL.
+- Product thumbnail generation on upload (headless GL or Puppeteer render pass to a 512×512 PNG, stored alongside the GLB and saved into `Product.thumbnailUrl`).
+- Rejection reason capture on admin reject.
 
 ### Backlog / Not Yet Slotted
-- Admin-promotion UI (currently only via SQL `UPDATE "User" SET role = 'ADMIN'`).
-- Product thumbnail generation (column exists, not populated; needs headless GL or Puppeteer render pass on upload). Listing currently shows a "3D" placeholder.
-- Rejection reason capture on admin reject (currently boolean accept/reject only).
-- Vendor product edit / delete flows (currently create-only).
 - True LOD: server-side mesh decimation on upload to generate low/medium/high GLB variants, served based on connection class.
 - Material-name → property mapping (e.g., "metal" → high metalness). Today the material name is metadata only.
-- Supabase Realtime chat (Sprint 9-10).
 - E2E tests + accessibility audit (Sprint 11-12).
+- Configure `images.remotePatterns` once the S3/CDN host is finalized so we can use `next/image` for product thumbnails.
 
 ## Open Questions
 
 - S3 bucket access model — public-read on the `vendors/*` prefix, or signed-URL reads via the storage driver? The viewer fetches `glbUrl` / `textureUrl` directly, so the bucket needs to allow public GET (or CloudFront with OAI). User has not provided AWS creds yet.
 - Whether to keep the original (uncompressed) GLB on S3 alongside the Draco-compressed version.
-- `next/image` is not wired for product thumbnails yet — we use a plain `<img>` with an ESLint-disable comment because `images.remotePatterns` would need to know the S3/CDN host, which is not configured yet.
+- Stripe webhook destination for local dev: do we use `stripe listen --forward-to localhost:3000/api/stripe/webhook` only, or also set up a tunneled URL (ngrok) so we can test from real devices? Tunneling pulls in extra setup; CLI forward is enough for now.
+- Tax handling: today we collect no tax. AGENTS doesn't require it. Enabling Stripe Tax (`automatic_tax.enabled: true` on the session) is a one-line change once we know which jurisdictions to support.
+- Shipping: today no shipping line item. The marketplace ships physical products, but per AGENTS §9 "Physical logistics or last-mile delivery integration" is out of scope. Vendors are expected to handle fulfilment off-platform for now.
 
 ## Architecture Decisions
 
@@ -96,17 +102,25 @@ Update this file whenever the current phase, active feature, or implementation s
 - Material cloning + originals snapshot pattern in `ConfigurableViewer` so we never mutate the `useGLTF`-cached scene (would bleed between viewer instances and across navigations).
 - Decimal columns (price) always serialized via `.toString()` before crossing the RSC → client component boundary; `JSON.stringify` of a `Decimal` would throw otherwise.
 - `next/image` deliberately not used for product imagery until `images.remotePatterns` is configured for the actual S3/CDN host.
+- Stripe-hosted Checkout (redirect flow) over Payment Element / embedded checkout. Reason: Stripe handles all wallets (Apple Pay, Google Pay), 3DS, tax, and form layout out of the box — far less code and PCI surface area for an MVP. We give up some UX control over the payment page itself.
+- Discounts applied as **single-use Stripe coupons** created server-side per checkout session (one-shot, `duration: "once"`). Reason: keeps our DB the source of truth for promo logic (Stripe coupons are throwaway), and Stripe shows the discount on the receipt with the correct code label. Trade-off: we create a coupon per checkout instead of pre-provisioning them — fine at our scale.
+- Server-trusted cart validation. **Never** trust the client's `price` field — `validateCart` re-fetches every product, rejects unapproved or insufficient-stock items, and rebuilds line totals from `Product.price`. Even the Stripe `line_items` are built from server-fetched prices.
+- Orders are created **before** the Stripe session (status PENDING with `stripeSessionId` filled in immediately after) so the webhook always has a row to flip. Webhook idempotency is enforced by checking `order.status === "PENDING"` inside the transaction.
 
 ## Session Notes
 
 - Next.js 16.2.6, React 19.2.4, Tailwind v4 (`@tailwindcss/postcss`).
 - TypeScript paths kept at `"@/*": ["./*"]` (root-relative) — `lib/`, `store/`, `components/`, `types/`, `auth.ts`, `auth.config.ts`, `proxy.ts` all live at project root.
-- Prisma 7.8.0. Migrations directory: `prisma/migrations/`. Run `prisma migrate dev` to add new ones (uses `DIRECT_URL` from `prisma.config.ts`).
+- Prisma 7.8.0. Migrations directory: `prisma/migrations/`. Run `prisma migrate dev` to add new ones (uses `DIRECT_URL` from `prisma.config.ts`). When the shell can't drive interactive prompts (most non-TTY contexts), generate the SQL via `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/<timestamp>_<name>/migration.sql`, then `prisma migrate deploy`.
 - Supabase project `izlcfkohtsxwthtpurgi` (region `ap-northeast-1`). Pooled URL on port 6543 with `pgbouncer=true`; direct URL on 5432. URL-encode any special characters in the password (`@` → `%40`, etc.) when editing `.env`.
 - Initial Supabase schema was wiped and re-initialized from `prisma/schema.prisma` cleanly on 2026-05-11 (lost 2 placeholder users + 1 vendor; clean-slate approved by user).
 - `@react-three/fiber`, `@react-three/drei`, `three` installed. Viewer components always dynamically imported with `ssr: false` to avoid SSR'ing the WebGL canvas.
 - `@aws-sdk/client-s3` v3 used; only the S3 module is imported. `AWS_REGION` / `AWS_S3_BUCKET` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` not yet set in `.env` — upload route will throw at first use until they are.
 - `draco3dgltf` ships as JS-only; custom ambient declaration at `types/draco3dgltf.d.ts`.
 - To promote a user to ADMIN until we build a UI: `UPDATE "User" SET role = 'ADMIN' WHERE email = '<email>';` in Supabase SQL editor.
-- Type-check + `next build` both green as of mid Sprint 7-8 (cart slice). Build output: 15 routes (3 static, 12 dynamic) + proxy middleware. Newest public addition: `/cart`.
+- Type-check + `next build` both green as of end of Sprint 7-8. Build output: 20 routes (3 static, 17 dynamic) + proxy middleware. Sprint 7-8 additions: `/cart`, `/checkout`, `/checkout/success`, `/checkout/cancel`, `/account/orders`, plus API routes `/api/checkout/session` and `/api/stripe/webhook`.
 - Cart localStorage key is `3dmkt:cart:v1`. To wipe a stuck cart during dev: `localStorage.removeItem('3dmkt:cart:v1')` in DevTools.
+- Stripe SDK installed (`stripe` npm package). `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` must be set in `.env` before `/api/checkout/session` and `/api/stripe/webhook` will function — both read keys lazily so the build still passes when keys are absent.
+- Local webhook testing: install the Stripe CLI then `stripe listen --forward-to localhost:3000/api/stripe/webhook` — the CLI prints a `whsec_...` value to paste into `STRIPE_WEBHOOK_SECRET` for the session.
+- Successful Stripe test cards: `4242 4242 4242 4242` (Visa), any future date, any CVC. To simulate 3DS step-up: `4000 0027 6000 3184`. To force a decline: `4000 0000 0000 0002`.
+- Promo codes are matched case-insensitively after server-side uppercasing — the DB stores `code` exactly as inserted, so store new codes in uppercase to match the lookup path (`prisma.promoCode.findUnique({ where: { code: input.toUpperCase() } })`).
