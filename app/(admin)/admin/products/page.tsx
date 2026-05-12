@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { toCdnUrl } from "@/lib/storage/cdn";
 import { ReviewCard } from "./review-card";
 
 export const metadata = { title: "Product review queue" };
@@ -44,7 +45,7 @@ export default async function AdminProductsPage({
                   price: p.price.toString(),
                   stock: p.stock,
                   status: p.status,
-                  glbUrl: p.glbUrl,
+                  glbUrl: toCdnUrl(p.glbUrl),
                   polyCount: p.polyCount,
                   fileSize: p.fileSize,
                   rejectionReason: p.rejectionReason,

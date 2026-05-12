@@ -321,3 +321,155 @@ Once a CloudFront distribution is provisioned for the bucket (AGENTS.md §4.1, e
 **Takeaway**
 
 S3 + browser fetch is the most common "looks like a network error, is actually a header" failure mode. Whenever a public S3 URL works in a plain browser tab but `Failed to fetch` from JS, check CORS first.
+
+---
+
+## Issue 9 — `Failed to fetch` persists after CloudFront is configured
+
+**Sprint:** 3–4 — *Upload pipeline* (asset URL persistence) bleeding into 5–6 (viewer wiring) and 11–12 (CDN deployment polish).
+
+**Symptom**
+
+After setting `AWS_CLOUDFRONT_URL` in `.env` and confirming that CloudFront serves objects publicly (direct URL in a browser tab downloads the file), the in-app viewers on `/vendor/products`, `/admin/products`, and `/products/[slug]` **still** report:
+
+```
+Could not load https://model-uploader-bucket.s3.eu-north-1.amazonaws.com/.../shoes-…glb:
+Failed to fetch.
+```
+
+Notice the host: the error references the **bare S3 origin**, not the new CloudFront one — even though `AWS_CLOUDFRONT_URL` is now set.
+
+**Root cause**
+
+Two compounding problems:
+
+1. **Stored URL, not stored key.** The upload route (`app/api/vendor/products/upload/route.ts`) calls `storage.publicUrl(key)` *at upload time* and persists the fully-formed URL in `Product.glbUrl`. [lib/storage/s3.ts](../lib/storage/s3.ts) `publicUrl` consults `process.env.AWS_CLOUDFRONT_URL` only at call time — it has no way to retroactively update rows uploaded when the env var was empty. Result: every product uploaded before CloudFront was provisioned still has an `https://<bucket>.s3.<region>.amazonaws.com/...` URL in the DB.
+2. **S3 still has no CORS.** The bare S3 host (which those stale URLs point at) was never given the CORS configuration from Issue 8 — the user moved straight to provisioning CloudFront instead. So those rows continue to CORS-fail exactly like Issue 8.
+
+The fact that CloudFront serves the file publicly when accessed *directly* is a red herring — the browser is never asked to hit CloudFront because the DB row says "go to S3."
+
+**Fix**
+
+Introduce a server-side URL normalizer that rewrites legacy S3 URLs to the current CloudFront origin at **read time**, and apply it everywhere a stored asset URL is rendered.
+
+1. New helper at [lib/storage/cdn.ts](../lib/storage/cdn.ts):
+
+    ```ts
+    import "server-only";
+
+    export function toCdnUrl(url: string | null | undefined): string | null {
+      if (!url) return null;
+      const cdn = process.env.AWS_CLOUDFRONT_URL?.replace(/\/$/, "");
+      if (!cdn) return url;
+      if (url.startsWith(cdn)) return url;
+      const m = url.match(/^https?:\/\/[^/]+\.s3(?:[.-][^/]+)?\.amazonaws\.com\/(.+)$/);
+      if (!m) return url;
+      return `${cdn}/${m[1]}`;
+    }
+    ```
+
+    Idempotent: passes CloudFront URLs through unchanged, returns the original when `AWS_CLOUDFRONT_URL` is empty (local dev against S3 only), and matches both `<bucket>.s3.amazonaws.com` and `<bucket>.s3.<region>.amazonaws.com` virtual-hosted styles.
+
+2. Applied at every server-component read site so the client only ever sees the CloudFront URL:
+
+    - [app/(vendor)/vendor/products/page.tsx](../app/(vendor)/vendor/products/page.tsx) — `<GlbThumbLazy src={toCdnUrl(p.glbUrl)!} />`
+    - [app/(admin)/admin/products/page.tsx](../app/(admin)/admin/products/page.tsx) — `glbUrl: toCdnUrl(p.glbUrl)` in the props passed to `ReviewCard`.
+    - [app/products/[slug]/page.tsx](../app/products/[slug]/page.tsx) — rewrites `glbUrl`, `thumbnailUrl`, every `variant.textureUrl`, **and** the OpenGraph image in metadata.
+    - [app/products/page.tsx](../app/products/page.tsx) — rewrites `thumbnailUrl` on each marketplace card.
+
+3. The upload route itself needs no change: `storage.publicUrl()` already returns a CloudFront URL when `AWS_CLOUDFRONT_URL` is set, so new uploads go straight to the right host and the normalizer is a no-op for them.
+
+**Why this approach over a one-shot DB backfill**
+
+A migration script that walks `Product`/`ProductVariant` and rewrites every stored URL would work today but breaks again the next time the CDN origin moves (e.g. switching to a custom domain, adding a staging-bucket Distribution, regional rollouts). Reading the URL through `toCdnUrl()` makes the storage layer durable across any future origin change — the DB stores "where the bytes live," the helper decides "how today's browser should reach them."
+
+The right architectural endgame is to store *only the S3 key* in `Product.glbKey` (not the URL) and call `storage.publicUrl(key)` on every read. That's a small schema migration deferred to Sprint 11–12 polish; `toCdnUrl()` is the no-migration bridge until then.
+
+**Required CloudFront-side configuration**
+
+Code alone isn't enough — CloudFront also needs CORS, and by default it has none. Two options, in increasing order of correctness:
+
+1. **Fastest (recommended for now):** attach the AWS-managed **`Managed-SimpleCORS`** Response Headers Policy to the distribution's default cache behavior. AWS Console → CloudFront → your distribution → Behaviors → Default (\*) → Edit → Response headers policy → **SimpleCORS** → Save. Re-deploys in ~3 minutes; CloudFront then injects `Access-Control-Allow-Origin: *` on every response. Hard-refresh the browser afterwards because CORS responses are cached.
+2. **Production-grade:** keep [infra/s3-cors.json](../infra/s3-cors.json) on the bucket *and* configure the CloudFront cache behavior to forward the `Origin` header to S3 (Origin Request Policy: `Managed-CORS-S3Origin`). CloudFront then mirrors whatever CORS S3 returns — letting you constrain `AllowedOrigins` to your production domains instead of the wildcard.
+
+**Takeaway**
+
+Never persist a fully-formed CDN URL in the database — the URL is an *infrastructure detail*, not a property of the asset. Store the key and compute the URL on every read (or, as a stop-gap, normalize at the read site like `toCdnUrl()` does). Otherwise every CDN migration becomes a data migration.
+
+---
+
+## Issue 10 — `Failed to fetch` persists even after CloudFront URL rewrite
+
+**Sprint:** 3–4 — *Upload pipeline* (asset delivery) with overlap into 11–12 (CDN polish).
+
+**Symptom**
+
+After Issue 9's `toCdnUrl()` was applied, the URL the browser tries to fetch is now correctly on the CloudFront origin — but the loader still throws:
+
+```
+[browser] Uncaught Error: Could not load https://d25hh8ye8oo9n5.cloudfront.net/
+  vendors/cmp1v9qkx0001a8vfzngd3p0a/products/shoes-1778586397788.glb:
+  Failed to fetch
+    at ProductDetailPage (app/products/[slug]/page.tsx:74:7)
+```
+
+Note the host — it's `d25hh8ye8oo9n5.cloudfront.net`, not the S3 host. So the rewrite is doing its job; the remaining failure is on CloudFront's side.
+
+**Root cause**
+
+CloudFront, by default, **does not return CORS headers**. You can confirm by curling the URL with `-H "Origin: http://localhost:3000" -I` — the response is missing `Access-Control-Allow-Origin`. The browser drops the response and `fetch` returns the same `TypeError: Failed to fetch` as in Issues 8 and 9.
+
+The fix Issue 9 prescribed (attach AWS-managed `Managed-SimpleCORS` Response Headers Policy in the CloudFront Console) hadn't yet been applied. Even after applying it, CloudFront's edge nodes take a few minutes to propagate the new policy, and the browser caches CORS preflight responses for `Access-Control-Max-Age` seconds — so a stale negative result can keep biting after the AWS-side change.
+
+**Fix**
+
+Sidestep CORS entirely with a **same-origin asset proxy**. The browser fetches `/api/assets/<key>` (same origin as the app → no CORS handshake), and the Next.js server streams the object from CloudFront server-to-server (server-to-server has no Origin header → no CORS check on the upstream either).
+
+1. New route at [app/api/assets/[...key]/route.ts](../app/api/assets/[...key]/route.ts):
+
+    ```ts
+    export async function GET(_req, { params }) {
+      const { key: keyParts } = await params;
+      const key = keyParts.map(decodeURIComponent).join("/");
+      const upstreamUrl = storage.publicUrl(key);
+      const upstream = await fetch(upstreamUrl, { cache: "no-store" });
+      // ...pass through content-type + content-length, set immutable cache-control...
+      return new Response(upstream.body, { status: 200, headers });
+    }
+    ```
+
+    Catch-all `[...key]` because S3 keys contain `/`. Each segment is `decodeURIComponent`'d on the way in (and the client encodes them on the way out — see step 2) so keys with spaces or unicode survive routing.
+
+2. [lib/storage/cdn.ts](../lib/storage/cdn.ts) — `toCdnUrl()` now extracts the key from any S3 or CloudFront URL and rewrites to `/api/assets/<encoded-key>`:
+
+    ```ts
+    const encoded = key.split("/").map(encodeURIComponent).join("/");
+    return `/api/assets/${encoded}`;
+    ```
+
+    All four call sites from Issue 9 (vendor list, admin queue, product detail, marketplace) continue to call `toCdnUrl()` unchanged — only the *shape* of what it returns changed.
+
+3. Idempotent + reversible:
+    - If a URL is already a proxy path (`/api/assets/...`), it's returned unchanged (lets us re-run the helper safely).
+    - Set `ASSET_PROXY=false` in `.env` to bypass the proxy and serve direct CloudFront URLs — once `Managed-SimpleCORS` is attached and propagated, flip this to get CDN-direct delivery back.
+
+**Trade-offs**
+
+- **Pro:** zero AWS-console work to unblock dev. CORS questions are out of the loop entirely.
+- **Pro:** the route handler can later be extended with auth (e.g. signed-url checks for private products) without touching anything else.
+- **Con:** every asset byte flows through the Next.js server instead of straight from a CDN edge to the user. Fine for dev and early traffic; a real bottleneck at scale.
+- **Con:** Vercel's serverless function payload limit (4.5 MB on the free tier, 50 MB on Pro) would cap GLB sizes once deployed. Streaming through `Response(upstream.body)` keeps memory low but the response body still counts toward the limit. Production must run with `ASSET_PROXY=false` + working CloudFront CORS.
+
+**When to flip back to direct CDN delivery**
+
+Once you've attached `Managed-SimpleCORS` to the CloudFront distribution and waited ~3 minutes for propagation:
+
+```
+ASSET_PROXY=false
+```
+
+…in `.env` (and on Vercel). `toCdnUrl()` then returns the bare CloudFront URL again, restoring CDN-direct delivery.
+
+**Takeaway**
+
+CORS errors on third-party CDNs have two clean solutions: configure the CDN to send the right headers (correct, fast, requires console access and propagation time), or proxy through your own origin (works always, costs runtime). Have both available behind a single env-var toggle so you can pick whichever fits the moment.

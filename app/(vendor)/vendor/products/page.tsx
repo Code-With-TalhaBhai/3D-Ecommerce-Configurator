@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { toCdnUrl } from "@/lib/storage/cdn";
 import { GlbThumbLazy } from "@/components/viewer/glb-thumb-lazy";
 import { ProductActions } from "./product-actions";
 
@@ -87,7 +88,7 @@ export default async function VendorProductsPage() {
               <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-[auto,1.5fr,repeat(5,auto),auto] sm:items-center">
                 <div className="h-20 w-20 overflow-hidden rounded-md border border-zinc-200 bg-gradient-to-br from-zinc-50 to-zinc-100 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
                   {p.glbUrl ? (
-                    <GlbThumbLazy src={p.glbUrl} className="h-full w-full" />
+                    <GlbThumbLazy src={toCdnUrl(p.glbUrl)!} className="h-full w-full" />
                   ) : (
                     <ThumbPlaceholder />
                   )}

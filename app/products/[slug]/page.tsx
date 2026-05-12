@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { toCdnUrl } from "@/lib/storage/cdn";
 import { ProductChatPanel } from "@/components/chat/product-chat-panel";
 import { ProductConfigurator } from "./product-configurator";
 
@@ -44,7 +45,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       title: product.title,
       description: product.description.slice(0, 200),
       type: "website",
-      ...(product.thumbnailUrl ? { images: [product.thumbnailUrl] } : {}),
+      ...(product.thumbnailUrl ? { images: [toCdnUrl(product.thumbnailUrl)!] } : {}),
     },
   };
 }
@@ -77,12 +78,15 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
           description: product.description,
           price: product.price.toString(),
           stock: product.stock,
-          glbUrl: product.glbUrl ?? null,
-          thumbnailUrl: product.thumbnailUrl ?? null,
+          glbUrl: toCdnUrl(product.glbUrl),
+          thumbnailUrl: toCdnUrl(product.thumbnailUrl),
           polyCount: product.polyCount,
           fileSize: product.fileSize,
           vendor: { storeName: product.vendor.storeName, slug: product.vendor.slug },
-          variants: product.variants,
+          variants: product.variants.map((v) => ({
+            ...v,
+            textureUrl: toCdnUrl(v.textureUrl),
+          })),
         }}
       />
 

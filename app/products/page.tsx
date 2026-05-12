@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { prisma } from "@/lib/prisma";
+import { toCdnUrl } from "@/lib/storage/cdn";
 import { SearchBar } from "./search-bar";
 import type { Prisma } from "@/app/generated/prisma/client";
 
@@ -93,7 +94,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
                     {p.thumbnailUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={p.thumbnailUrl}
+                        src={toCdnUrl(p.thumbnailUrl)!}
                         alt={p.title}
                         className="h-full w-full object-cover"
                         loading="lazy"
