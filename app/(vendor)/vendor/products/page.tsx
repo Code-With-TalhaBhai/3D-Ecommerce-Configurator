@@ -3,16 +3,14 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { ProductActions } from "./product-actions";
 
 export const metadata = { title: "Your products" };
 
 const statusBadgeClass: Record<string, string> = {
-  PENDING:
-    "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200",
-  APPROVED:
-    "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200",
-  REJECTED:
-    "bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200",
+  PENDING: "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200",
+  APPROVED: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200",
+  REJECTED: "bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200",
 };
 
 function formatBytes(n: number | null | undefined) {
@@ -43,7 +41,9 @@ export default async function VendorProductsPage() {
       status: true,
       polyCount: true,
       fileSize: true,
+      rejectionReason: true,
       createdAt: true,
+      _count: { select: { orderItems: true } },
     },
   });
 
@@ -68,50 +68,72 @@ export default async function VendorProductsPage() {
           </p>
         </div>
       ) : (
-        <div className="mt-8 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <table className="w-full text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-              <tr>
-                <th className="px-4 py-3">Title</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Price</th>
-                <th className="px-4 py-3">Stock</th>
-                <th className="px-4 py-3">Polys</th>
-                <th className="px-4 py-3">Size</th>
-                <th className="px-4 py-3">Uploaded</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-              {products.map((p) => (
-                <tr key={p.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-950/40">
-                  <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
-                    {p.title}
-                  </td>
-                  <td className="px-4 py-3">
+        <ul className="mt-8 flex flex-col gap-3">
+          {products.map((p) => (
+            <li
+              key={p.id}
+              className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
+            >
+              <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-[1.5fr,repeat(5,auto),auto] sm:items-center">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                      {p.title}
+                    </span>
                     <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass[p.status] ?? ""}`}
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${statusBadgeClass[p.status] ?? ""}`}
                     >
                       {p.status}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">
+                  </div>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    /{p.slug}
+                  </p>
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="block uppercase tracking-wide">Price</span>
+                  <span className="text-sm text-zinc-900 dark:text-zinc-100">
                     ${p.price.toString()}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">{p.stock}</td>
-                  <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">
+                  </span>
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="block uppercase tracking-wide">Stock</span>
+                  <span className="text-sm text-zinc-900 dark:text-zinc-100">{p.stock}</span>
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="block uppercase tracking-wide">Polys</span>
+                  <span className="text-sm text-zinc-900 dark:text-zinc-100">
                     {p.polyCount?.toLocaleString() ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">
+                  </span>
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="block uppercase tracking-wide">Size</span>
+                  <span className="text-sm text-zinc-900 dark:text-zinc-100">
                     {formatBytes(p.fileSize)}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
+                  </span>
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="block uppercase tracking-wide">Date</span>
+                  <span className="text-sm text-zinc-900 dark:text-zinc-100">
                     {p.createdAt.toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </span>
+                </div>
+                <div className="flex sm:justify-end">
+                  <ProductActions
+                    productId={p.id}
+                    hasOrders={p._count.orderItems > 0}
+                  />
+                </div>
+              </div>
+              {p.status === "REJECTED" && p.rejectionReason && (
+                <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+                  <span className="font-medium">Reviewer note:</span>{" "}
+                  {p.rejectionReason}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

@@ -121,6 +121,7 @@ model Product {
   polyCount   Int?
   fileSize    Int?
   status      ProductStatus @default(PENDING)
+  rejectionReason String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 

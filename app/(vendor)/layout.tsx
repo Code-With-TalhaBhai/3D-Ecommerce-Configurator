@@ -34,6 +34,12 @@ export default async function VendorLayout({ children }: { children: ReactNode }
             >
               Products
             </Link>
+            <Link
+              href="/vendor/messages"
+              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              Messages
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-3">

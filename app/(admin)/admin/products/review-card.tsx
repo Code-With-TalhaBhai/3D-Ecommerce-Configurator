@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { approveProduct, rejectProduct } from "./actions";
@@ -21,6 +21,7 @@ type Product = {
   glbUrl: string | null;
   polyCount: number | null;
   fileSize: number | null;
+  rejectionReason: string | null;
   createdAt: string;
   vendor: { storeName: string; slug: string };
 };
@@ -33,6 +34,34 @@ function formatBytes(n: number | null) {
 
 export function ReviewCard({ product }: { product: Product }) {
   const [showViewer, setShowViewer] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function onApprove() {
+    setError(null);
+    const fd = new FormData();
+    fd.set("id", product.id);
+    startTransition(async () => {
+      await approveProduct(fd);
+    });
+  }
+
+  function onReject() {
+    setError(null);
+    const fd = new FormData();
+    fd.set("id", product.id);
+    fd.set("reason", reason);
+    startTransition(async () => {
+      const result = await rejectProduct(fd);
+      if (!result.ok) setError(result.error);
+      else {
+        setRejecting(false);
+        setReason("");
+      }
+    });
+  }
 
   return (
     <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -90,21 +119,70 @@ export function ReviewCard({ product }: { product: Product }) {
           </div>
         </dl>
 
+        {product.status === "REJECTED" && product.rejectionReason && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+            <span className="font-medium">Reason:</span> {product.rejectionReason}
+          </div>
+        )}
+
         {product.status === "PENDING" ? (
-          <div className="flex gap-2 pt-1">
-            <form action={approveProduct} className="flex-1">
-              <input type="hidden" name="id" value={product.id} />
-              <Button type="submit" className="w-full">
+          rejecting ? (
+            <div className="flex flex-col gap-2 pt-1">
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                maxLength={500}
+                minLength={5}
+                placeholder="Why is this being rejected? Vendors see this note."
+                disabled={pending}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950"
+              />
+              {error && <p className="text-xs text-red-600">{error}</p>}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={onReject}
+                  disabled={reason.trim().length < 5 || pending}
+                  className="flex-1"
+                >
+                  Reject with note
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setRejecting(false);
+                    setError(null);
+                  }}
+                  disabled={pending}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2 pt-1">
+              <Button
+                type="button"
+                onClick={onApprove}
+                disabled={pending}
+                className="flex-1"
+              >
                 Approve
               </Button>
-            </form>
-            <form action={rejectProduct} className="flex-1">
-              <input type="hidden" name="id" value={product.id} />
-              <Button type="submit" variant="destructive" className="w-full">
-                Reject
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setRejecting(true)}
+                disabled={pending}
+                className="flex-1"
+              >
+                Reject…
               </Button>
-            </form>
-          </div>
+            </div>
+          )
         ) : (
           <div className="pt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Status: <span className="font-medium">{product.status}</span>

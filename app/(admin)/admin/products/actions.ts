@@ -1,38 +1,47 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
-import { auth } from "@/auth";
+import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Forbidden");
-  }
-  return session;
-}
+const idSchema = z.string().min(1);
 
 export async function approveProduct(formData: FormData) {
   await requireAdmin();
-  const id = String(formData.get("id"));
-  if (!id) return;
+  const id = idSchema.safeParse(formData.get("id"));
+  if (!id.success) return;
   await prisma.product.update({
-    where: { id },
-    data: { status: "APPROVED" },
+    where: { id: id.data },
+    data: { status: "APPROVED", rejectionReason: null },
   });
   revalidatePath("/admin/products");
   revalidatePath("/admin");
 }
 
-export async function rejectProduct(formData: FormData) {
+export type RejectResult = { ok: true } | { ok: false; error: string };
+
+const rejectSchema = z.object({
+  id: z.string().min(1),
+  reason: z.string().trim().min(5, "Reason must be at least 5 characters").max(500),
+});
+
+export async function rejectProduct(formData: FormData): Promise<RejectResult> {
   await requireAdmin();
-  const id = String(formData.get("id"));
-  if (!id) return;
+  const parsed = rejectSchema.safeParse({
+    id: formData.get("id"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    const first = parsed.error.issues[0]?.message ?? "Invalid input.";
+    return { ok: false, error: first };
+  }
   await prisma.product.update({
-    where: { id },
-    data: { status: "REJECTED" },
+    where: { id: parsed.data.id },
+    data: { status: "REJECTED", rejectionReason: parsed.data.reason },
   });
   revalidatePath("/admin/products");
   revalidatePath("/admin");
+  return { ok: true };
 }

@@ -3,10 +3,10 @@
 Update this file whenever the current phase, active feature, or implementation state changes.
 
 ## Current Phase
-- Admin Dashboard expansion (between Sprint 7-8 and 9-10) — complete
+- Sprint 9-10 (Advanced features) — complete
 
 ## Current Goal
-- Sprint 9-10 (Advanced features: Supabase Realtime chat, admin promo-code management, vendor edit/delete) — not started
+- Sprint 11-12 (Testing & Polish: E2E tests, performance benchmarking, accessibility audit, deployment) — not started
 
 ## Completed
 
@@ -66,26 +66,40 @@ Update this file whenever the current phase, active feature, or implementation s
 - Feature 39: Order Management — `/admin/orders` is a platform-wide order list with status filter tabs covering every `OrderStatus` variant (PENDING / PAID / SHIPPED / DELIVERED / CANCELLED / REFUNDED). Table columns: last-10 of CUID (full ID is mouse-tooltipable in dev tools), customer (linked back to `/admin/users?q=<email>` so admins can drill across), item count, status pill, promo code if used, total, and date. Read-only for now — no admin-driven status transitions; `SHIPPED` and `DELIVERED` belong to vendor fulfilment UI in a later sprint.
 - Feature 40: Admin Navigation — Admin layout nav expanded from `Overview · Product queue` to `Overview · Products · Vendors · Users · Orders`. Header layout unchanged. All five sections are server components that re-fetch their data on every navigation — no client-side caching to worry about for fresh admin views.
 
+### Sprint 9-10: Advanced Features
+
+- Feature 41: Rejection Reason Schema — Migration `20260512020000_add_product_rejection_reason` adds `Product.rejectionReason String?`. Admin reject action `app/(admin)/admin/products/actions.ts` now validates a 5-500 char reason via Zod, persists it alongside `status: REJECTED`, and clears it back to `null` on approval. The approve/reject UI in `review-card.tsx` is no longer two parallel `<form action={...}>` — it's a `useTransition` + `useState` client component: clicking "Reject…" opens an inline textarea (autoresize, 500 char cap, 5 char min), `Reject with note` confirms, `Cancel` returns to the two-button layout. Existing rejected products display their reason in a red callout above the buttons.
+- Feature 42: Realtime Client Env — `lib/supabase/client.ts` now exports `getSupabase()` (singleton, lazy) that reads `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` first and falls back to `NEXT_PUBLIC_SUPABASE_ANON_KEY` — matches the newer `sb_publishable_*` shape Supabase ships in dashboard "Project Settings → API" while staying compatible with legacy projects. Throws cleanly if both are missing so the chat UI can show a fallback rather than silently breaking.
+- Feature 43: Chat Channel + Broadcast Helpers — `lib/realtime-shared.ts` (no `server-only`, safe in client bundles) exports `chatChannelName(productId, userA, userB)` (sorts the two user IDs so the channel name is stable regardless of who sends) and the `CHAT_BROADCAST_EVENT = "message"` constant. `lib/realtime.ts` (server-only) re-exports both and adds `broadcastChatMessage(channel, payload)` — connects via the public key, subscribes with a 3s timeout, sends a `type: "broadcast"` payload, then tears down the channel. Failures are swallowed: realtime is best-effort, the persisted DB row is the source of truth and clients re-fetch on mount.
+- Feature 44: Message Server Helpers — `lib/messages.ts` exports `fetchThread(productId, userA, userB)` (returns up to 500 messages between two users on a product, oldest-first, with `createdAt` serialized to ISO strings) and `sendChatMessage({ productId, senderId, receiverId, body })` (Zod-like guard on length 1-2000, persists via Prisma, fans out to the broadcast channel). Both are pure server helpers — auth is the caller's responsibility, enforced at the API route layer.
+- Feature 45: Messages API — `GET /api/products/[id]/messages` (auth required) returns the thread between the current user and the appropriate counterparty: if the caller is the product's vendor, they must pass `?withUserId=<customerId>` (so the inbox can disambiguate threads); otherwise the counterparty is implicitly the vendor. `POST` accepts `{ body, withUserId? }`, runs the same participant resolution, and — when the sender is the vendor — additionally requires that the customer has either previously messaged them about this product **or** placed an order for it (prevents vendor spam to arbitrary user IDs). On success, returns the persisted message; broadcast is fire-and-forget.
+- Feature 46: Product Chat Panel — `components/chat/product-chat-panel.tsx` is a client island mounted under the configurator on `/products/[slug]` whenever the viewer is signed in **and** not the vendor of the product. Initial thread fetched via `GET /api/products/[id]/messages`, live updates via Supabase Realtime broadcast subscription on `chatChannelName(productId, currentUserId, vendorUserId)`. Auto-scrolls to the latest message; deduplicates incoming broadcasts against the local list by `id` so the optimistic POST response doesn't double-render. Send box is a textarea (Enter to send, Shift+Enter for newline) with a Send icon button. If Supabase env isn't configured the panel still works via the fetch path — realtime simply doesn't subscribe. Vendors visiting their own product page see a link to `/vendor/messages` instead of the chat panel.
+- Feature 47: Vendor Inbox — `/vendor/messages` (auth + vendor-exists gated) pulls the latest 500 messages the vendor has on their products, groups them by `(productId, customerId)` in-memory (latest message wins), sorts threads newest-first, and renders each as a collapsible card. `VendorThread` (client island) lazy-loads the full thread via `GET ...?withUserId=<customerId>` only when expanded, subscribes to Realtime broadcasts on the same channel as the customer side, and provides an inline reply box. Vendor nav gains "Messages" alongside "Dashboard / Products".
+- Feature 48: Admin Promo Codes — `/admin/promos` server component lists active and expired codes in separate tables ordered by expiry then creation. `PromoForm` client component creates new codes with Zod validation (3-32 chars, uppercase + digits + `_-`, percent capped at 100), date picker for optional expiry, and live percent/fixed type toggle. Two server actions exposed: `expirePromo(id)` sets `expiresAt = now()` and `deletePromo(id)` hard-deletes. Admin nav gains "Promos" tab.
+- Feature 49: Vendor Product Delete — `deleteProduct` server action in `app/(vendor)/vendor/products/actions.ts` validates vendor ownership, **refuses** when the product has `_count.orderItems > 0` (would orphan purchase history — UI surfaces "set stock to 0 instead"), then cascade-deletes the product (variants + messages cascade via Prisma `onDelete: Cascade`) and best-effort cleans the GLB + variant textures from S3 by extracting the key after `/vendors/`. `ProductActions` client island renders a Delete button with a two-tap confirm; the button is disabled with a title-attribute hint when orders exist.
+- Feature 50: Vendor Products Layout Refactor — `/vendor/products` swapped from a flat `<table>` to a per-row card list so each product can expose inline delete + show a rejection-reason callout when status is REJECTED. Columns are still labelled (Price / Stock / Polys / Size / Date) but stack vertically on small screens.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-### Sprint 9-10: Advanced Features (per AGENTS.md §3.4, §3.6)
-- Supabase Realtime chat scoped per product listing (customer ↔ vendor), backed by the existing `Message` model. Real-time subscribe via the existing `@supabase/supabase-js` client; persist to Postgres via Prisma.
-- Admin promo-code management UI under `/admin/promos` (create / list / expire). Today the `PromoCode` table can only be edited via SQL.
-- Vendor product edit & delete flows. Today `/vendor/products` is read-only after upload.
-- Product thumbnail generation on upload (headless GL or Puppeteer render pass to a 512×512 PNG, stored alongside the GLB and saved into `Product.thumbnailUrl`).
-- Rejection reason capture on admin reject (currently boolean accept/reject only — the reject server action accepts no notes field).
-- Vendor fulfilment UI: vendor-side controls to flip Order status to SHIPPED / DELIVERED for their own line items (admin /admin/orders is read-only).
-- Hard gate on vendor approval (currently a trust badge; doesn't actually block products going live).
+### Sprint 11-12: Testing & Polish (per AGENTS.md sprint plan)
+- E2E tests (Playwright): auth → vendor onboarding → upload → admin approve → customer browse → cart → checkout (with Stripe test card) → success page.
+- Performance benchmarking: measure first-frame target (<3s on standard broadband) on representative GLB sizes, validate Draco compression ratios, capture Lighthouse scores per top-level route.
+- Accessibility audit: `axe-core` automated pass on every route, keyboard-only smoke test of the configurator, ARIA labels on the chat UI and the role/status selects.
+- Deployment hardening: Vercel project config, `images.remotePatterns` for the S3 / CDN host so we can move product imagery to `next/image`, production env-var wiring for AWS + Stripe + Supabase.
 
 ### Backlog / Not Yet Slotted
+- Vendor product edit (only delete shipped in Sprint 9-10 — re-uploading a GLB has compression + storage implications that need a thought-out flow).
+- Vendor fulfilment UI: vendor-side controls to flip Order status to SHIPPED / DELIVERED for their own line items. Admin `/admin/orders` is read-only.
+- Hard gate on vendor approval (currently a trust badge; doesn't actually block products going live).
+- Product thumbnail generation on upload (headless GL or Puppeteer render pass to a 512×512 PNG, stored alongside the GLB and saved into `Product.thumbnailUrl`).
 - True LOD: server-side mesh decimation on upload to generate low/medium/high GLB variants, served based on connection class.
 - Material-name → property mapping (e.g., "metal" → high metalness). Today the material name is metadata only.
-- E2E tests + accessibility audit (Sprint 11-12).
-- Configure `images.remotePatterns` once the S3/CDN host is finalized so we can use `next/image` for product thumbnails.
+- Notification badge for unread vendor messages (server-side count + nav indicator).
+- Customer-side message inbox at `/account/messages` so customers can see all their vendor conversations across products.
 
 ## Open Questions
 
@@ -120,6 +134,11 @@ Update this file whenever the current phase, active feature, or implementation s
 - User suspension is a soft block — `User.suspendedAt` is a nullable timestamp checked at sign-in only. Reason: JWT sessions are stateless, so we'd otherwise need to round-trip to the DB on every request. Trade-off: a suspended user with a live session can finish out their token's lifetime (24h default). Hardening pathway (if needed): swap to DB-backed sessions or add a Redis-backed deny-list.
 - Admin actions surface "you can't do this to yourself" + "you can't demote/suspend/delete the last admin" guards in `lib/admin.ts` rather than scattering the checks per-action. Result is a single place to audit lockout safety.
 - Vendor approval is currently a **trust badge** — `Vendor.approvedAt` doesn't gate products from going live. Products still go through `/admin/products` review individually. Decision kept the two states independent so vendor-onboarding tightening doesn't force a schema migration later.
+- Realtime chat uses Supabase **broadcast** (pubsub), not `postgres_changes` (DB-replication-driven). Reason: broadcast doesn't require Realtime to be enabled on the `Message` table and doesn't require RLS policies to gate read access — security is enforced at the Next.js API layer where we already have NextAuth context. Trade-off: realtime fan-out is best-effort; if the broadcast drops, the persisted DB row is still the source of truth and clients see the message on next page load / refresh.
+- Chat channels are scoped to `chat:{productId}:{userIdA}:{userIdB}` with the two user IDs **sorted** so both participants land on the same channel name. This is the simplest way to guarantee consistent channel names across the customer and vendor sides without a stored conversation ID.
+- Vendor messages list is grouped per (productId, customerId) **in-memory** from the latest 500 messages. Fine at MVP scale; a `Conversation` materialized view or `lastMessageAt` denormalization can replace it once the inbox grows.
+- Vendor product **delete** refuses when `_count.orderItems > 0` to preserve purchase history integrity. Soft-delete or "archive" is not modeled yet — vendors can set stock to 0 to hide a product.
+- Rejection reason is a free-text string (5-500 chars) rather than a curated enum. Reason: each rejection has unique context (poly count, geometry issue, naming, etc.), and a fixed taxonomy would either be too narrow or too broad. If we later want analytics we can add a `category` enum alongside the free-text field.
 
 ## Session Notes
 
@@ -133,9 +152,12 @@ Update this file whenever the current phase, active feature, or implementation s
 - `draco3dgltf` ships as JS-only; custom ambient declaration at `types/draco3dgltf.d.ts`.
 - To bootstrap the **first** admin (chicken-and-egg — `/admin/users` requires being signed in as ADMIN): `UPDATE "User" SET role = 'ADMIN' WHERE email = '<email>';` in Supabase SQL editor. After that, manage every other role from `/admin/users`.
 - The admin-lockout safety check is `lib/admin.ts` `adminCount()`. If you ever see "Can't demote the last admin" during dev when you expect multiple admins, double-check via `SELECT count(*) FROM "User" WHERE role = 'ADMIN';`.
-- Type-check + `next build` both green as of end of admin dashboard expansion. Build output: 23 routes (3 static, 20 dynamic) + proxy middleware. Sprint 7-8 additions: `/cart`, `/checkout`, `/checkout/success`, `/checkout/cancel`, `/account/orders`, `/api/checkout/session`, `/api/stripe/webhook`. Admin dashboard additions: `/admin/users`, `/admin/vendors`, `/admin/orders` (plus the rebuilt `/admin` overview).
+- Type-check + `next build` both green as of end of Sprint 9-10. Build output: 25 routes (3 static, 22 dynamic) + proxy middleware. Sprint 9-10 additions: `/admin/promos`, `/vendor/messages`, plus API route `/api/products/[id]/messages`.
 - Cart localStorage key is `3dmkt:cart:v1`. To wipe a stuck cart during dev: `localStorage.removeItem('3dmkt:cart:v1')` in DevTools.
 - Stripe SDK installed (`stripe` npm package). `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` must be set in `.env` before `/api/checkout/session` and `/api/stripe/webhook` will function — both read keys lazily so the build still passes when keys are absent.
 - Local webhook testing: install the Stripe CLI then `stripe listen --forward-to localhost:3000/api/stripe/webhook` — the CLI prints a `whsec_...` value to paste into `STRIPE_WEBHOOK_SECRET` for the session.
 - Successful Stripe test cards: `4242 4242 4242 4242` (Visa), any future date, any CVC. To simulate 3DS step-up: `4000 0027 6000 3184`. To force a decline: `4000 0000 0000 0002`.
-- Promo codes are matched case-insensitively after server-side uppercasing — the DB stores `code` exactly as inserted, so store new codes in uppercase to match the lookup path (`prisma.promoCode.findUnique({ where: { code: input.toUpperCase() } })`).
+- Promo codes are matched case-insensitively after server-side uppercasing — the DB stores `code` exactly as inserted, so store new codes in uppercase to match the lookup path (`prisma.promoCode.findUnique({ where: { code: input.toUpperCase() } })`). `/admin/promos` already uppercases on create.
+- Realtime chat env: only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or legacy `_ANON_KEY`) are required — both are already set in `.env`. No service-role key needed for broadcast.
+- Chat broadcast best-effort: the server-side `broadcastChatMessage` swallows subscribe / send errors silently. If realtime is degraded, the persisted DB row is the source of truth — clients see the message on the next mount / refetch.
+- To bulk-clear a runaway thread during dev: `DELETE FROM "Message" WHERE "productId" = '<cuid>';` in Supabase SQL editor.

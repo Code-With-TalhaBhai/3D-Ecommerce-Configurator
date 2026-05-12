@@ -47,6 +47,7 @@ export default async function AdminProductsPage({
                   glbUrl: p.glbUrl,
                   polyCount: p.polyCount,
                   fileSize: p.fileSize,
+                  rejectionReason: p.rejectionReason,
                   createdAt: p.createdAt.toISOString(),
                   vendor: p.vendor,
                 }}

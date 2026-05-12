@@ -52,6 +52,12 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             >
               Orders
             </Link>
+            <Link
+              href="/admin/promos"
+              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              Promos
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-3">
