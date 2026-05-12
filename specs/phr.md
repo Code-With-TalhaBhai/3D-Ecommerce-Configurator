@@ -17,3 +17,6 @@
 
 
 - Complete the sprint 7-8 remaining features.
+
+
+- Before moving to Sprint 9-10. Make the Admin Dashboard, and update the @specs/progress-update.md

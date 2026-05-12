@@ -32,7 +32,25 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               href="/admin/products"
               className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
-              Product queue
+              Products
+            </Link>
+            <Link
+              href="/admin/vendors"
+              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              Vendors
+            </Link>
+            <Link
+              href="/admin/users"
+              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              Users
+            </Link>
+            <Link
+              href="/admin/orders"
+              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              Orders
             </Link>
           </nav>
         </div>

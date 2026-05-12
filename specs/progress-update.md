@@ -3,7 +3,7 @@
 Update this file whenever the current phase, active feature, or implementation state changes.
 
 ## Current Phase
-- Sprint 7-8 (Marketplace Core) — complete
+- Admin Dashboard expansion (between Sprint 7-8 and 9-10) — complete
 
 ## Current Goal
 - Sprint 9-10 (Advanced features: Supabase Realtime chat, admin promo-code management, vendor edit/delete) — not started
@@ -56,6 +56,16 @@ Update this file whenever the current phase, active feature, or implementation s
 - Feature 32: Purchase History — `app/account/layout.tsx` enforces auth and renders `PublicHeader`. `app/account/orders/page.tsx` fetches `prisma.order.findMany({ where: { customerId: session.user.id }, include: items.product })`, lists them newest-first as cards with a color-coded status badge per `OrderStatus`, a CUID for support, line items linked back to `/products/[slug]`, and the captured `promoCode` + `total`. Empty state with CTA to `/products`. PublicHeader gains an "Orders" link visible whenever a user is signed in (any role).
 - Feature 33: Product Search & Price Filter — `app/products/search-bar.tsx` (client) is a controlled form with `q`, `min`, `max` inputs that pushes a serialized query string onto `/products`. `app/products/page.tsx` now accepts async `searchParams`, builds a `Prisma.ProductWhereInput` with `status: APPROVED` plus optional `OR` on title/description (`mode: "insensitive"`) and `price.gte` / `price.lte`. Result count rendered above the grid. "No matches" empty state copy differs from "no products live yet". Clear button (visible when filters are active) wipes all params back to `/products`.
 
+### Admin Dashboard expansion (cross-sprint)
+
+- Feature 34: User Suspension Field — Migration `20260512010000_add_user_suspended_at` adds `User.suspendedAt DateTime?`. `auth.ts` Credentials `authorize()` returns `null` when a matched user has `suspendedAt` set, so suspended accounts can't get a fresh session (existing JWT-backed sessions tick down naturally until expiry — accepted trade-off for stateless sessions). Admin actions that suspend a user can therefore lock that user out on their next sign-in attempt.
+- Feature 35: Admin Helpers — `lib/admin.ts` exports `requireAdmin()` (returns the session if the caller is ADMIN, throws `AdminGuardError(401|403)`) and `adminCount()` (count of users with role=ADMIN). Used by every admin server action as a single source of truth for the role gate and for the "last admin" safety check.
+- Feature 36: Admin Overview Redesign — `app/(admin)/admin/page.tsx` rebuilt with a 4-card top row (lifetime revenue via `prisma.order.aggregate({ _sum: { total } })` over PAID orders; paid order count with a 30-day delta; pending product / pending vendor counters that turn amber when non-zero), a 3-card middle row breaking down Products / Vendors / Users with counts per status, a "Recent orders" table (6 newest) with order status pills + totals, and an "Operational alerts" sidebar surfacing pending review queues + suspended user count linked to filtered admin pages. All counts computed in a single `Promise.all` query batch.
+- Feature 37: User Management — `/admin/users` server component lists up to 100 users with role + status filter tabs (`all / admin / vendor / customer` × `all / active / suspended`) and a `q` search across email and name (`mode: "insensitive"`). `UserRow` is a client island that exposes a role `<select>`, suspend / reactivate button, and delete button (with two-tap confirm). All three are server actions in `actions.ts` (`changeRole`, `toggleSuspend`, `deleteUser`) guarded by `requireAdmin()`. **Safety rails**: admins can never modify their own account ("you can't change your own role / suspend yourself / delete yourself"); the last remaining ADMIN can never be demoted, suspended, or deleted; delete is blocked when the user has `orders > 0` or any messages (Prisma FK is `Restrict` by default for these — we surface the same constraint as a UI message rather than letting a P2003 throw).
+- Feature 38: Vendor Management — `/admin/vendors` lists vendors as a 2-column card grid with filter tabs (`all / approved / pending`). Each card shows store logo (placeholder of initials when missing), name + status pill + "Owner suspended" pill (derived from the owner's `User.suspendedAt`), slug, owner contact, description, and a 3-column stat strip (products / joined / approval date). Single CTA per card: `Approve` when `approvedAt` is null, `Revoke approval` otherwise. Both wire to `actions.ts` server actions guarded by `requireAdmin()`. Vendor approval is a **trust badge** at this stage — it doesn't gate the storefront yet (individual products still flow through `/admin/products` review). Future work can add a hard gate.
+- Feature 39: Order Management — `/admin/orders` is a platform-wide order list with status filter tabs covering every `OrderStatus` variant (PENDING / PAID / SHIPPED / DELIVERED / CANCELLED / REFUNDED). Table columns: last-10 of CUID (full ID is mouse-tooltipable in dev tools), customer (linked back to `/admin/users?q=<email>` so admins can drill across), item count, status pill, promo code if used, total, and date. Read-only for now — no admin-driven status transitions; `SHIPPED` and `DELIVERED` belong to vendor fulfilment UI in a later sprint.
+- Feature 40: Admin Navigation — Admin layout nav expanded from `Overview · Product queue` to `Overview · Products · Vendors · Users · Orders`. Header layout unchanged. All five sections are server components that re-fetch their data on every navigation — no client-side caching to worry about for fresh admin views.
+
 ## In Progress
 
 - None.
@@ -66,9 +76,10 @@ Update this file whenever the current phase, active feature, or implementation s
 - Supabase Realtime chat scoped per product listing (customer ↔ vendor), backed by the existing `Message` model. Real-time subscribe via the existing `@supabase/supabase-js` client; persist to Postgres via Prisma.
 - Admin promo-code management UI under `/admin/promos` (create / list / expire). Today the `PromoCode` table can only be edited via SQL.
 - Vendor product edit & delete flows. Today `/vendor/products` is read-only after upload.
-- Vendor admin-promotion UI on `/admin/users` so role changes don't require SQL.
 - Product thumbnail generation on upload (headless GL or Puppeteer render pass to a 512×512 PNG, stored alongside the GLB and saved into `Product.thumbnailUrl`).
-- Rejection reason capture on admin reject.
+- Rejection reason capture on admin reject (currently boolean accept/reject only — the reject server action accepts no notes field).
+- Vendor fulfilment UI: vendor-side controls to flip Order status to SHIPPED / DELIVERED for their own line items (admin /admin/orders is read-only).
+- Hard gate on vendor approval (currently a trust badge; doesn't actually block products going live).
 
 ### Backlog / Not Yet Slotted
 - True LOD: server-side mesh decimation on upload to generate low/medium/high GLB variants, served based on connection class.
@@ -106,6 +117,9 @@ Update this file whenever the current phase, active feature, or implementation s
 - Discounts applied as **single-use Stripe coupons** created server-side per checkout session (one-shot, `duration: "once"`). Reason: keeps our DB the source of truth for promo logic (Stripe coupons are throwaway), and Stripe shows the discount on the receipt with the correct code label. Trade-off: we create a coupon per checkout instead of pre-provisioning them — fine at our scale.
 - Server-trusted cart validation. **Never** trust the client's `price` field — `validateCart` re-fetches every product, rejects unapproved or insufficient-stock items, and rebuilds line totals from `Product.price`. Even the Stripe `line_items` are built from server-fetched prices.
 - Orders are created **before** the Stripe session (status PENDING with `stripeSessionId` filled in immediately after) so the webhook always has a row to flip. Webhook idempotency is enforced by checking `order.status === "PENDING"` inside the transaction.
+- User suspension is a soft block — `User.suspendedAt` is a nullable timestamp checked at sign-in only. Reason: JWT sessions are stateless, so we'd otherwise need to round-trip to the DB on every request. Trade-off: a suspended user with a live session can finish out their token's lifetime (24h default). Hardening pathway (if needed): swap to DB-backed sessions or add a Redis-backed deny-list.
+- Admin actions surface "you can't do this to yourself" + "you can't demote/suspend/delete the last admin" guards in `lib/admin.ts` rather than scattering the checks per-action. Result is a single place to audit lockout safety.
+- Vendor approval is currently a **trust badge** — `Vendor.approvedAt` doesn't gate products from going live. Products still go through `/admin/products` review individually. Decision kept the two states independent so vendor-onboarding tightening doesn't force a schema migration later.
 
 ## Session Notes
 
@@ -117,8 +131,9 @@ Update this file whenever the current phase, active feature, or implementation s
 - `@react-three/fiber`, `@react-three/drei`, `three` installed. Viewer components always dynamically imported with `ssr: false` to avoid SSR'ing the WebGL canvas.
 - `@aws-sdk/client-s3` v3 used; only the S3 module is imported. `AWS_REGION` / `AWS_S3_BUCKET` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` not yet set in `.env` — upload route will throw at first use until they are.
 - `draco3dgltf` ships as JS-only; custom ambient declaration at `types/draco3dgltf.d.ts`.
-- To promote a user to ADMIN until we build a UI: `UPDATE "User" SET role = 'ADMIN' WHERE email = '<email>';` in Supabase SQL editor.
-- Type-check + `next build` both green as of end of Sprint 7-8. Build output: 20 routes (3 static, 17 dynamic) + proxy middleware. Sprint 7-8 additions: `/cart`, `/checkout`, `/checkout/success`, `/checkout/cancel`, `/account/orders`, plus API routes `/api/checkout/session` and `/api/stripe/webhook`.
+- To bootstrap the **first** admin (chicken-and-egg — `/admin/users` requires being signed in as ADMIN): `UPDATE "User" SET role = 'ADMIN' WHERE email = '<email>';` in Supabase SQL editor. After that, manage every other role from `/admin/users`.
+- The admin-lockout safety check is `lib/admin.ts` `adminCount()`. If you ever see "Can't demote the last admin" during dev when you expect multiple admins, double-check via `SELECT count(*) FROM "User" WHERE role = 'ADMIN';`.
+- Type-check + `next build` both green as of end of admin dashboard expansion. Build output: 23 routes (3 static, 20 dynamic) + proxy middleware. Sprint 7-8 additions: `/cart`, `/checkout`, `/checkout/success`, `/checkout/cancel`, `/account/orders`, `/api/checkout/session`, `/api/stripe/webhook`. Admin dashboard additions: `/admin/users`, `/admin/vendors`, `/admin/orders` (plus the rebuilt `/admin` overview).
 - Cart localStorage key is `3dmkt:cart:v1`. To wipe a stuck cart during dev: `localStorage.removeItem('3dmkt:cart:v1')` in DevTools.
 - Stripe SDK installed (`stripe` npm package). `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` must be set in `.env` before `/api/checkout/session` and `/api/stripe/webhook` will function — both read keys lazily so the build still passes when keys are absent.
 - Local webhook testing: install the Stripe CLI then `stripe listen --forward-to localhost:3000/api/stripe/webhook` — the CLI prints a `whsec_...` value to paste into `STRIPE_WEBHOOK_SECRET` for the session.
