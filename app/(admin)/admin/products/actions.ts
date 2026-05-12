@@ -18,6 +18,10 @@ export async function approveProduct(formData: FormData) {
   });
   revalidatePath("/admin/products");
   revalidatePath("/admin");
+  // Public marketplace + the vendor's own list both filter on status; invalidate
+  // both so an approved product appears immediately.
+  revalidatePath("/products");
+  revalidatePath("/vendor/products");
 }
 
 export type RejectResult = { ok: true } | { ok: false; error: string };
@@ -43,5 +47,7 @@ export async function rejectProduct(formData: FormData): Promise<RejectResult> {
   });
   revalidatePath("/admin/products");
   revalidatePath("/admin");
+  revalidatePath("/products");
+  revalidatePath("/vendor/products");
   return { ok: true };
 }

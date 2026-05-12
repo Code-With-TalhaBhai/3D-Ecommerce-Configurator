@@ -45,12 +45,19 @@ function textureExt(mime: string) {
 }
 
 export async function POST(req: Request) {
+  try {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (session.user.role !== "VENDOR" && session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!session.user.id) {
+    return NextResponse.json(
+      { error: "Session is missing user id. Please log out and sign in again." },
+      { status: 401 },
+    );
   }
 
   const vendor = await prisma.vendor.findUnique({
@@ -211,4 +218,12 @@ export async function POST(req: Request) {
     product,
     stats: processed.stats,
   });
+  } catch (err) {
+    console.error("[/api/vendor/products/upload] unhandled error:", err);
+    const msg = err instanceof Error ? err.message : "Unexpected server error.";
+    return NextResponse.json(
+      { error: `Upload failed: ${msg}` },
+      { status: 500 },
+    );
+  }
 }

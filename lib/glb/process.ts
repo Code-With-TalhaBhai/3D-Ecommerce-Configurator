@@ -36,7 +36,11 @@ async function getIo() {
           "draco3d.decoder": decoder,
           "draco3d.encoder": encoder,
         });
-    })();
+    })().catch((err) => {
+      // Reset so a later upload can retry instead of latching onto a rejected promise.
+      ioPromise = null;
+      throw err;
+    });
   }
   return ioPromise;
 }
@@ -99,7 +103,13 @@ export async function processGlb(input: Uint8Array): Promise<GlbProcessResult> {
     return { ok: false, reason: `Draco compression failed: ${msg}` };
   }
 
-  const compressed = await io.writeBinary(document);
+  let compressed: Uint8Array;
+  try {
+    compressed = await io.writeBinary(document);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown encoding error";
+    return { ok: false, reason: `GLB encoding failed: ${msg}` };
+  }
 
   return {
     ok: true,

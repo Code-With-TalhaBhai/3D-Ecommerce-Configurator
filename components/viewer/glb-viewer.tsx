@@ -32,7 +32,7 @@ export function GlbViewer({ src, revokeOnUnmount, className }: GlbViewerProps) {
   return (
     <div className={className}>
       <Canvas
-        shadows
+        shadows="basic"
         dpr={[1, 2]}
         camera={{ position: [2, 2, 3], fov: 45 }}
         gl={{ antialias: true }}

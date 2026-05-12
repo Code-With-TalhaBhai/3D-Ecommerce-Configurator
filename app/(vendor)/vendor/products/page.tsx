@@ -3,7 +3,16 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { GlbThumbLazy } from "@/components/viewer/glb-thumb-lazy";
 import { ProductActions } from "./product-actions";
+
+function ThumbPlaceholder() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400 dark:from-zinc-800 dark:to-zinc-900">
+      3D
+    </div>
+  );
+}
 
 export const metadata = { title: "Your products" };
 
@@ -39,6 +48,7 @@ export default async function VendorProductsPage() {
       price: true,
       stock: true,
       status: true,
+      glbUrl: true,
       polyCount: true,
       fileSize: true,
       rejectionReason: true,
@@ -74,7 +84,14 @@ export default async function VendorProductsPage() {
               key={p.id}
               className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
             >
-              <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-[1.5fr,repeat(5,auto),auto] sm:items-center">
+              <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-[auto,1.5fr,repeat(5,auto),auto] sm:items-center">
+                <div className="h-20 w-20 overflow-hidden rounded-md border border-zinc-200 bg-gradient-to-br from-zinc-50 to-zinc-100 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
+                  {p.glbUrl ? (
+                    <GlbThumbLazy src={p.glbUrl} className="h-full w-full" />
+                  ) : (
+                    <ThumbPlaceholder />
+                  )}
+                </div>
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-zinc-900 dark:text-zinc-100">
