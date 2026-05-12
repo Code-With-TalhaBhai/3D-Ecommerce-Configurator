@@ -4,3 +4,9 @@
 
 
 - Sprint 3-4 is the GLB upload pipeline (S3 + Draco compression + admin review queue)
+
+
+- Update the file @specs/progress-update.md according to our project, also mention which feature or phase we're working on, also what is upcoming feature or phase based on what've you implemented so far.
+
+
+- Start building the next sprint 5-6(3D  Viewer & Customization). Also update the @specs/progress-update.md file. 

@@ -2,20 +2,46 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 const GlbViewer = dynamic(
   () => import("@/components/viewer/glb-viewer").then((m) => m.GlbViewer),
   { ssr: false, loading: () => <ViewerSkeleton message="Loading viewer…" /> },
 );
 
-const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_GLB_BYTES = 50 * 1024 * 1024;
+const MAX_TEXTURE_BYTES = 2 * 1024 * 1024;
+const MAX_VARIANTS = 8;
 
 type FieldErrors = Record<string, string[]>;
+
+type VariantDraft = {
+  uid: string;
+  color: string;
+  material: string;
+  texture: File | null;
+};
+
+function newVariant(): VariantDraft {
+  return {
+    uid: crypto.randomUUID(),
+    color: "#cccccc",
+    material: "",
+    texture: null,
+  };
+}
 
 export function NewProductForm() {
   const router = useRouter();
@@ -24,6 +50,7 @@ export function NewProductForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [variants, setVariants] = useState<VariantDraft[]>([]);
 
   // Manage blob URL lifecycle so we don't leak memory across selections.
   useEffect(() => {
@@ -55,13 +82,42 @@ export function NewProductForm() {
       e.target.value = "";
       return;
     }
-    if (f.size > MAX_BYTES) {
+    if (f.size > MAX_GLB_BYTES) {
       setError("File exceeds the 50 MB limit.");
       setFile(null);
       e.target.value = "";
       return;
     }
     setFile(f);
+  }
+
+  function addVariant() {
+    setVariants((prev) => [...prev, newVariant()]);
+  }
+
+  function updateVariant(uid: string, patch: Partial<Omit<VariantDraft, "uid">>) {
+    setVariants((prev) =>
+      prev.map((v) => (v.uid === uid ? { ...v, ...patch } : v)),
+    );
+  }
+
+  function removeVariant(uid: string) {
+    setVariants((prev) => prev.filter((v) => v.uid !== uid));
+  }
+
+  function onTextureChange(uid: string, e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    if (!f) {
+      updateVariant(uid, { texture: null });
+      return;
+    }
+    if (f.size > MAX_TEXTURE_BYTES) {
+      setError("Each texture must be 2 MB or smaller.");
+      e.target.value = "";
+      return;
+    }
+    setError(null);
+    updateVariant(uid, { texture: f });
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -76,6 +132,22 @@ export function NewProductForm() {
 
     const formData = new FormData(e.currentTarget);
     formData.set("glb", file);
+
+    // Serialize variants as JSON + attach texture files under predictable keys.
+    if (variants.length > 0) {
+      const meta = variants.map((v, i) => {
+        const entry: { color?: string; material?: string; textureKey?: string } = {};
+        if (v.color) entry.color = v.color;
+        if (v.material.trim()) entry.material = v.material.trim();
+        if (v.texture) {
+          const key = `texture_${i}`;
+          entry.textureKey = key;
+          formData.set(key, v.texture);
+        }
+        return entry;
+      });
+      formData.set("variants", JSON.stringify(meta));
+    }
 
     try {
       const res = await fetch("/api/vendor/products/upload", {
@@ -102,10 +174,7 @@ export function NewProductForm() {
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="grid gap-6 lg:grid-cols-[1fr,1fr]"
-    >
+    <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-[1fr,1fr]">
       <div className="flex flex-col gap-5 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="title">Title</Label>
@@ -133,27 +202,12 @@ export function NewProductForm() {
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="price">Price (USD)</Label>
-            <Input
-              id="price"
-              name="price"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              disabled={submitting}
-            />
+            <Input id="price" name="price" type="number" step="0.01" min="0" required disabled={submitting} />
             {fieldErrors.price && <p className="text-xs text-red-600">{fieldErrors.price[0]}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="stock">Stock</Label>
-            <Input
-              id="stock"
-              name="stock"
-              type="number"
-              min="0"
-              required
-              disabled={submitting}
-            />
+            <Input id="stock" name="stock" type="number" min="0" required disabled={submitting} />
             {fieldErrors.stock && <p className="text-xs text-red-600">{fieldErrors.stock[0]}</p>}
           </div>
         </div>
@@ -174,6 +228,79 @@ export function NewProductForm() {
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               {file?.name} · {sizeLabel}
             </p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="mb-0">Variants (optional)</Label>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Color, material, and texture options customers can swap in 3D.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={addVariant}
+              disabled={submitting || variants.length >= MAX_VARIANTS}
+            >
+              <Plus className="h-3.5 w-3.5" /> Add variant
+            </Button>
+          </div>
+
+          {variants.length > 0 && (
+            <ul className="flex flex-col gap-2">
+              {variants.map((v, i) => (
+                <li
+                  key={v.uid}
+                  className="grid grid-cols-[auto,1fr,1fr,auto] items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950"
+                >
+                  <label
+                    className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-zinc-300 dark:border-zinc-700"
+                    style={{ backgroundColor: v.color }}
+                    title="Pick color"
+                  >
+                    <input
+                      type="color"
+                      value={v.color}
+                      onChange={(e) => updateVariant(v.uid, { color: e.target.value })}
+                      disabled={submitting}
+                      className="h-full w-full cursor-pointer opacity-0"
+                    />
+                  </label>
+                  <Input
+                    placeholder={`Material #${i + 1} (e.g. leather)`}
+                    value={v.material}
+                    onChange={(e) => updateVariant(v.uid, { material: e.target.value })}
+                    maxLength={60}
+                    disabled={submitting}
+                    className="h-9"
+                  />
+                  <Input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => onTextureChange(v.uid, e)}
+                    disabled={submitting}
+                    className="h-9 cursor-pointer file:mr-2 file:rounded file:border-0 file:bg-zinc-900 file:px-2 file:py-1 file:text-[10px] file:font-medium file:text-white dark:file:bg-zinc-100 dark:file:text-zinc-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeVariant(v.uid)}
+                    disabled={submitting}
+                    className={cn(
+                      "rounded-md p-1.5 text-zinc-500 hover:bg-red-50 hover:text-red-700",
+                      "disabled:cursor-not-allowed disabled:opacity-50",
+                      "dark:text-zinc-400 dark:hover:bg-red-950/40 dark:hover:text-red-300",
+                    )}
+                    aria-label="Remove variant"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
 

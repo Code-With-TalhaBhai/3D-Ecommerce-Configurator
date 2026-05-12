@@ -74,16 +74,16 @@ export default async function Home() {
         </p>
         <div className="mt-8 flex gap-3">
           <Link
-            href="/register"
+            href="/products"
             className="inline-flex h-11 items-center justify-center rounded-md bg-zinc-900 px-6 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            Get started
+            Browse products
           </Link>
           <Link
-            href="/login"
+            href={session?.user ? "/vendor" : "/register"}
             className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-6 text-sm font-medium text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
           >
-            Sign in
+            {session?.user ? "Vendor console" : "Sell on 3D Marketplace"}
           </Link>
         </div>
       </main>

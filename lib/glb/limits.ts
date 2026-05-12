@@ -8,3 +8,12 @@ export const ACCEPTED_MIME = new Set([
 export const ACCEPTED_EXT = new Set([".glb"]);
 
 export const GLB_MAGIC = 0x46546c67; // "glTF" little-endian
+
+// Variant texture constraints
+export const MAX_TEXTURE_BYTES = 2 * 1024 * 1024; // 2 MB
+export const MAX_VARIANTS = 8;
+export const ACCEPTED_TEXTURE_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
