@@ -10,3 +10,10 @@
 
 
 - Start building the next sprint 5-6(3D  Viewer & Customization). Also update the @specs/progress-update.md file. 
+
+
+- Next sprint 7-8 (Cart Page + persistence), and update the @specs/progress-update.md  file.
+
+
+
+- Complete the sprint 7-8 remaining features.

@@ -3,10 +3,10 @@
 Update this file whenever the current phase, active feature, or implementation state changes.
 
 ## Current Phase
-- Sprint 5-6 (3D Viewer & Customization) — complete
+- Sprint 7-8 (Marketplace Core) — in progress: cart page + persistence complete; checkout / Stripe / orders / search pending
 
 ## Current Goal
-- Sprint 7-8 (Marketplace Core: cart, checkout, Stripe) — not started
+- Sprint 7-8 next slice: `/checkout` flow + Stripe Checkout Session + order persistence
 
 ## Completed
 
@@ -43,25 +43,26 @@ Update this file whenever the current phase, active feature, or implementation s
 - Feature 23: Performance Marker & LOD-Lite — Configurator measures `performance.now()` from mount to the viewer's `onFirstFrame` callback; in development the elapsed ms is printed in a corner overlay and logged. `Navigator.connection.effectiveType` / `saveData` is probed on mount; on slow-2g/2g/3g (or Save Data flag) the configurator shows an amber "Slow connection detected" hint. True multi-LOD generation is deferred until Sprint 7-8+.
 - Feature 24: Public Header & Cart Badge — `components/layout/public-header.tsx` (server component, sticky, backdrop-blur) renders on `/products/*` routes via `app/products/layout.tsx`. Shows brand, Browse link, cart icon with item-count badge (`components/layout/cart-badge.tsx` reads from Redux cart), and role-aware right side (sign in / sign up for guests; Vendor/Admin console + sign out for authenticated users). Landing page CTA updated to "Browse products" + secondary action that flips between "Sell on 3D Marketplace" (guest) and "Vendor console" (signed-in).
 
+### Sprint 7-8: Marketplace Core (in progress)
+
+- Feature 25: Cart Persistence — `store/persistence.ts` exposes `hydrateCartFromStorage(store)` and `subscribeCartToStorage(store)`. Storage key `3dmkt:cart:v1` (versioned for easy future migration). Persisted shape is validated with a Zod schema (`productId`, `vendorId`, `title`, `price ≥ 0`, `quantity > 0`, optional `thumbnailUrl` / `variantId`); corrupt payloads are wiped, not rehydrated. Subscriber diffs `JSON.stringify({ items })` against the previous write so non-cart actions don't re-serialize. SSR-safe — both functions short-circuit when `window` is undefined. Wired through `app/providers.tsx`: `useEffect` hydrates on mount, returns the subscription's unsubscribe.
+- Feature 26: Cart Page — `app/cart/page.tsx` is a server-rendered shell that mounts the `CartView` client island; `app/cart/layout.tsx` reuses `PublicHeader`. `cart-view.tsx` reads from Redux: per-row thumbnail (placeholder until thumbnails ship), title, "Variant configured" indicator when `variantId` set, per-unit price; quantity stepper (`Minus` / `Plus`, clamped 1-99, decrements disabled at 1); row subtotal computed live; per-row trash button dispatches `removeItem` keyed on `productId + variantId`. Order summary card is sticky on `lg` (top-20), shows item count, formatted subtotal, "calculated at checkout" placeholders for shipping/tax, and a Checkout CTA that dead-ends gracefully (`/checkout` route lands next slice). Clear-cart is a two-tap confirm to avoid accidental wipes. `Intl.NumberFormat` USD formatter shared across rows + totals. Empty state with shopping-bag icon and `/products` CTA. `/cart` was already linked from the cart badge in `PublicHeader`; the previous 404 is fixed.
+
 ## In Progress
 
-- None.
+- Sprint 7-8: cart slice + persistence + page done; checkout, Stripe, orders, promo codes, search/filter, purchase history all remaining.
 
 ## Next Up
 
-### Sprint 7-8: Marketplace Core (per AGENTS.md §3.4, §3.5)
-- `/cart` page that reads from the Redux cart slice, supports quantity changes / remove / clear, persists across reloads (localStorage middleware in Redux).
-- Cart persistence: localStorage hydrate on app mount, write on every mutation.
-- `/checkout` flow (auth-gated) with shipping form, order summary, and promo code field.
-- Stripe Checkout Session integration: `POST /api/checkout/session` creates the session, redirects to Stripe; webhook at `/api/stripe/webhook` flips Order to `PAID` and decrements stock.
-- Order persistence via `Order` + `OrderItem` rows (model already in schema).
-- Promo code application: `PromoCode` lookup, percent or fixed discount.
-- Product search and filtering on `/products` (Postgres `ilike` or full-text; vendor / price range / status filters).
+### Sprint 7-8 remaining slices
+- `/checkout` page (auth-gated via existing `proxy.ts` matcher) with shipping form and order summary read from Redux.
+- Stripe Checkout Session integration: `POST /api/checkout/session` creates the session and returns a redirect URL; webhook at `/api/stripe/webhook` flips Order to `PAID` and decrements `Product.stock`.
+- Order persistence via `Order` + `OrderItem` rows (model already in schema). Server action drains the Redux cart on success.
+- Promo code application: `PromoCode` lookup + percent/fixed discount calculation on the order summary.
+- Product search & filtering on `/products` (Postgres `ilike` or full-text; vendor / price range filters).
 - `/account/orders` purchase history (auth-gated).
 
 ### Backlog / Not Yet Slotted
-- Cart Redux persistence middleware (will arrive with Sprint 7-8).
-- `/cart` route — currently the cart badge in `PublicHeader` links to `/cart` but the route doesn't exist yet (404).
 - Admin-promotion UI (currently only via SQL `UPDATE "User" SET role = 'ADMIN'`).
 - Product thumbnail generation (column exists, not populated; needs headless GL or Puppeteer render pass on upload). Listing currently shows a "3D" placeholder.
 - Rejection reason capture on admin reject (currently boolean accept/reject only).
@@ -90,6 +91,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Upload proxied through a Next.js API route (not presigned direct-upload) so server can validate + Draco-compress before persisting.
 - All vendor uploads start as `ProductStatus.PENDING`; admin must approve before public listing surfaces them (per AGENTS §3.7).
 - Redux Toolkit for client state (cart, viewer config) — per AGENTS §5. RTK Query deferred until we add real API surfaces in Sprint 7-8.
+- Cart persistence via `store.subscribe` + `localStorage` instead of a Redux middleware. Reason: the persistence layer needs to be SSR-safe and run only after providers mount, which is exactly what `useEffect` gives us — a middleware would either fire on the server (unwanted) or require `typeof window` guards inside the dispatch path. Storage key is versioned (`3dmkt:cart:v1`) so future schema bumps can wipe and re-hydrate cleanly.
 - Variant overrides applied **scene-wide** to all mesh materials. Variants are a single-axis swap (color / material label / texture) rather than per-mesh slot targeting. Per-mesh targeting is a future expansion if vendors ask.
 - Material cloning + originals snapshot pattern in `ConfigurableViewer` so we never mutate the `useGLTF`-cached scene (would bleed between viewer instances and across navigations).
 - Decimal columns (price) always serialized via `.toString()` before crossing the RSC → client component boundary; `JSON.stringify` of a `Decimal` would throw otherwise.
@@ -106,4 +108,5 @@ Update this file whenever the current phase, active feature, or implementation s
 - `@aws-sdk/client-s3` v3 used; only the S3 module is imported. `AWS_REGION` / `AWS_S3_BUCKET` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` not yet set in `.env` — upload route will throw at first use until they are.
 - `draco3dgltf` ships as JS-only; custom ambient declaration at `types/draco3dgltf.d.ts`.
 - To promote a user to ADMIN until we build a UI: `UPDATE "User" SET role = 'ADMIN' WHERE email = '<email>';` in Supabase SQL editor.
-- Type-check + `next build` both green as of end of Sprint 5-6. Build output: 14 routes (5 static, 9 dynamic) + proxy middleware. Public additions: `/products` and `/products/[slug]`.
+- Type-check + `next build` both green as of mid Sprint 7-8 (cart slice). Build output: 15 routes (3 static, 12 dynamic) + proxy middleware. Newest public addition: `/cart`.
+- Cart localStorage key is `3dmkt:cart:v1`. To wipe a stuck cart during dev: `localStorage.removeItem('3dmkt:cart:v1')` in DevTools.
