@@ -1,8 +1,14 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { Bounds, Center, Environment, OrbitControls, useGLTF } from "@react-three/drei";
-import { Suspense, useEffect, useRef } from "react";
+import {
+  Bounds,
+  Center,
+  Environment,
+  OrbitControls,
+  useGLTF,
+} from "@react-three/drei";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { useAppSelector } from "@/store/hooks";
@@ -11,94 +17,176 @@ type ConfigurableViewerProps = {
   src: string;
   className?: string;
   onFirstFrame?: () => void;
+  /**
+   * Callback that receives a function to capture the canvas as a PNG data URL.
+   * Lets the parent wire a Screenshot button without lifting renderer state.
+   */
+  onScreenshotterReady?: (capture: () => string | null) => void;
 };
 
-function ConfigurableModel({ src, onFirstFrame }: { src: string; onFirstFrame?: () => void }) {
+type Original = {
+  color: THREE.Color | null;
+  map: THREE.Texture | null;
+};
+
+/**
+ * Copy the subset of properties that any THREE.Material is guaranteed to have,
+ * for the case where the source isn't MeshStandardMaterial (so the built-in
+ * `MeshPhysicalMaterial.copy` would crash reading `source.normalScale.x`).
+ */
+function copyMaterialSafely(target: THREE.MeshPhysicalMaterial, source: THREE.Material) {
+  target.name = source.name;
+  target.transparent = source.transparent;
+  target.opacity = source.opacity;
+  target.side = source.side;
+  target.visible = source.visible;
+  target.depthTest = source.depthTest;
+  target.depthWrite = source.depthWrite;
+  target.alphaTest = source.alphaTest;
+
+  // Optional fields present on most user-facing materials. Reads via index
+  // signature so we don't promise types Three doesn't guarantee.
+  const src = source as unknown as Record<string, unknown>;
+  if (src.color instanceof THREE.Color) target.color.copy(src.color);
+  if (src.map === null || src.map instanceof THREE.Texture) target.map = src.map ?? null;
+  if (src.alphaMap === null || src.alphaMap instanceof THREE.Texture) {
+    target.alphaMap = src.alphaMap ?? null;
+  }
+}
+
+function ConfigurableModel({
+  src,
+  onFirstFrame,
+}: {
+  src: string;
+  onFirstFrame?: () => void;
+}) {
   const gltf = useGLTF(src);
-  const variant = useAppSelector((s) => s.viewer);
+  const viewer = useAppSelector((s) => s.viewer);
+  // Per-material originals so we can restore color/map when the user clears overrides.
+  const originalsRef = useRef<Map<THREE.MeshPhysicalMaterial, Original>>(new Map());
 
-  // Clone the materials once so our overrides don't bleed into cached gltf scenes.
-  const originalsRef = useRef<
-    Map<
-      THREE.Mesh,
-      { color: THREE.Color | null; map: THREE.Texture | null }
-    >
-  >(new Map());
-
+  // First pass — clone every material as MeshPhysicalMaterial (a strict superset of
+  // Standard, adds clearcoat), snapshot originals, swap them in.
   useEffect(() => {
     gltf.scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh) || !obj.material) return;
-      if (originalsRef.current.has(obj)) return;
-      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-      const cloned = materials.map((m) => m.clone());
-      obj.material = Array.isArray(obj.material) ? cloned : cloned[0];
-      const first = cloned[0] as THREE.MeshStandardMaterial;
-      originalsRef.current.set(obj, {
-        color: first.color ? first.color.clone() : null,
-        map: first.map ?? null,
+      const sourceMaterials = Array.isArray(obj.material) ? obj.material : [obj.material];
+
+      const upgraded: THREE.MeshPhysicalMaterial[] = sourceMaterials.map((m) => {
+        if (m instanceof THREE.MeshPhysicalMaterial) return m.clone() as THREE.MeshPhysicalMaterial;
+        const next = new THREE.MeshPhysicalMaterial();
+        // `MeshPhysicalMaterial.copy` walks fields like `normalScale.x` that only
+        // exist on MeshStandardMaterial-shaped sources. Anything else (Basic /
+        // Lambert / Phong / Toon) needs a hand-rolled subset copy.
+        if (m instanceof THREE.MeshStandardMaterial) {
+          try {
+            next.copy(m);
+          } catch {
+            copyMaterialSafely(next, m);
+          }
+        } else {
+          copyMaterialSafely(next, m);
+        }
+        return next;
       });
+
+      for (const mat of upgraded) {
+        if (!originalsRef.current.has(mat)) {
+          originalsRef.current.set(mat, {
+            color: mat.color ? mat.color.clone() : null,
+            map: mat.map ?? null,
+          });
+        }
+      }
+
+      obj.material = Array.isArray(obj.material) ? upgraded : upgraded[0];
     });
     onFirstFrame?.();
-    // Run once per scene; new src remounts via Suspense key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gltf.scene]);
 
-  // Apply color from Redux viewer slice (null = restore original).
-  useEffect(() => {
+  // Helper to iterate every upgraded material with its `Original` snapshot.
+  const eachMaterial = (
+    cb: (mat: THREE.MeshPhysicalMaterial, originals: Original | undefined) => void,
+  ) => {
     gltf.scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh) || !obj.material) return;
-      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-      for (const m of materials) {
-        const mat = m as THREE.MeshStandardMaterial;
-        if (!mat.color) continue;
-        if (variant.color) {
-          mat.color.set(variant.color);
-        } else {
-          const orig = originalsRef.current.get(obj);
-          if (orig?.color) mat.color.copy(orig.color);
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const m of mats) {
+        if (m instanceof THREE.MeshPhysicalMaterial) {
+          cb(m, originalsRef.current.get(m));
         }
       }
     });
-  }, [variant.color, gltf.scene]);
+  };
 
-  // Apply texture (loads and assigns to material.map; restores original when null).
+  // --- Apply color (override or restore) ---
+  useEffect(() => {
+    eachMaterial((mat, originals) => {
+      if (!mat.color) return;
+      if (viewer.color) mat.color.set(viewer.color);
+      else if (originals?.color) mat.color.copy(originals.color);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer.color, gltf.scene]);
+
+  // --- Apply roughness / metalness / clearcoat / wireframe ---
+  useEffect(() => {
+    eachMaterial((mat) => {
+      mat.roughness = viewer.roughness;
+      mat.metalness = viewer.metalness;
+      mat.clearcoat = viewer.clearcoat;
+      mat.clearcoatRoughness = 0.1;
+      mat.wireframe = viewer.wireframe;
+      mat.needsUpdate = true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    viewer.roughness,
+    viewer.metalness,
+    viewer.clearcoat,
+    viewer.wireframe,
+    gltf.scene,
+  ]);
+
+  // --- Apply emissive color + intensity ---
+  useEffect(() => {
+    eachMaterial((mat) => {
+      if (!mat.emissive) return;
+      mat.emissive.set(viewer.emissiveColor);
+      mat.emissiveIntensity = viewer.emissiveIntensity;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer.emissiveColor, viewer.emissiveIntensity, gltf.scene]);
+
+  // --- Apply texture (load if URL set, restore original otherwise) + tile ---
   useEffect(() => {
     let cancelled = false;
 
     function applyMap(map: THREE.Texture | null) {
-      gltf.scene.traverse((obj) => {
-        if (!(obj instanceof THREE.Mesh) || !obj.material) return;
-        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-        for (const m of materials) {
-          const mat = m as THREE.MeshStandardMaterial;
-          if ("map" in mat) {
-            mat.map = map;
-            mat.needsUpdate = true;
-          }
+      eachMaterial((mat, originals) => {
+        const next = map ?? originals?.map ?? null;
+        mat.map = next;
+        if (next) {
+          next.wrapS = THREE.RepeatWrapping;
+          next.wrapT = THREE.RepeatWrapping;
+          next.repeat.set(viewer.textureRepeat, viewer.textureRepeat);
+          next.needsUpdate = true;
         }
+        mat.needsUpdate = true;
       });
     }
 
-    if (!variant.textureUrl) {
-      gltf.scene.traverse((obj) => {
-        if (!(obj instanceof THREE.Mesh)) return;
-        const orig = originalsRef.current.get(obj);
-        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-        for (const m of materials) {
-          const mat = m as THREE.MeshStandardMaterial;
-          if ("map" in mat) {
-            mat.map = orig?.map ?? null;
-            mat.needsUpdate = true;
-          }
-        }
-      });
+    if (!viewer.textureUrl) {
+      applyMap(null);
       return;
     }
 
     const loader = new THREE.TextureLoader();
     loader.setCrossOrigin("anonymous");
     loader.load(
-      variant.textureUrl,
+      viewer.textureUrl,
       (texture) => {
         if (cancelled) {
           texture.dispose();
@@ -110,7 +198,6 @@ function ConfigurableModel({ src, onFirstFrame }: { src: string; onFirstFrame?: 
       },
       undefined,
       () => {
-        // Texture failed to load; silently revert.
         if (!cancelled) applyMap(null);
       },
     );
@@ -118,31 +205,75 @@ function ConfigurableModel({ src, onFirstFrame }: { src: string; onFirstFrame?: 
     return () => {
       cancelled = true;
     };
-  }, [variant.textureUrl, gltf.scene]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer.textureUrl, viewer.textureRepeat, gltf.scene]);
 
   return <primitive object={gltf.scene} />;
 }
 
-export function ConfigurableViewer({ src, className, onFirstFrame }: ConfigurableViewerProps) {
+export function ConfigurableViewer({
+  src,
+  className,
+  onFirstFrame,
+  onScreenshotterReady,
+}: ConfigurableViewerProps) {
+  const viewer = useAppSelector((s) => s.viewer);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+
+  // Stable identity for the screenshot callback.
+  const screenshotter = useMemo(() => {
+    return () => {
+      const dom = rendererRef.current?.domElement;
+      if (!dom) return null;
+      try {
+        return dom.toDataURL("image/png");
+      } catch {
+        return null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    onScreenshotterReady?.(screenshotter);
+  }, [onScreenshotterReady, screenshotter]);
+
   return (
     <div className={className}>
       <Canvas
-        shadows="basic"
+        shadows
         dpr={[1, 2]}
         camera={{ position: [2, 2, 3], fov: 45 }}
-        gl={{ antialias: true }}
+        // preserveDrawingBuffer lets us read pixels back for screenshots.
+        gl={{ antialias: true, preserveDrawingBuffer: true }}
+        onCreated={({ gl }) => {
+          rendererRef.current = gl;
+        }}
       >
+        {viewer.backgroundColor && (
+          <color attach="background" args={[viewer.backgroundColor]} />
+        )}
         <ambientLight intensity={0.45} />
         <directionalLight position={[5, 5, 5]} intensity={1.1} castShadow />
         <Suspense fallback={null}>
           <Bounds fit clip observe margin={1.2}>
             <Center>
-              <ConfigurableModel src={src} onFirstFrame={onFirstFrame} />
+              <group scale={viewer.scale}>
+                <ConfigurableModel src={src} onFirstFrame={onFirstFrame} />
+              </group>
             </Center>
           </Bounds>
-          <Environment preset="studio" />
+          <Environment
+            key={viewer.envPreset}
+            preset={viewer.envPreset}
+            environmentIntensity={viewer.envIntensity}
+          />
         </Suspense>
-        <OrbitControls makeDefault enableDamping />
+        <OrbitControls
+          makeDefault
+          enableDamping
+          autoRotate={viewer.autoRotate}
+          autoRotateSpeed={viewer.autoRotateSpeed}
+        />
       </Canvas>
     </div>
   );

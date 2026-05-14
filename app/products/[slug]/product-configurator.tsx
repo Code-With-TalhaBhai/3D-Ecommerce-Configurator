@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ShoppingCart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,11 @@ import { resetVariant, setVariant } from "@/store/slices/viewerSlice";
 const ConfigurableViewer = dynamic(
   () => import("@/components/viewer/configurable-viewer").then((m) => m.ConfigurableViewer),
   { ssr: false, loading: () => <ViewerSkeleton message="Loading 3D viewer…" /> },
+);
+
+const ControlsPanel = dynamic(
+  () => import("@/components/viewer/controls-panel").then((m) => m.ControlsPanel),
+  { ssr: false },
 );
 
 type Variant = {
@@ -54,6 +59,7 @@ export function ProductConfigurator({ product }: { product: Product }) {
   const [renderMs, setRenderMs] = useState<number | null>(null);
   const [slowConnection, setSlowConnection] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const screenshotterRef = useRef<(() => string | null) | null>(null);
 
   // Reset viewer state when navigating between products.
   useEffect(() => {
@@ -63,7 +69,6 @@ export function ProductConfigurator({ product }: { product: Product }) {
     };
   }, [dispatch, product.id]);
 
-  // Connection-aware loading hint (lightweight LOD signal until we generate true LOD variants).
   useEffect(() => {
     type ConnInfo = { effectiveType?: string; saveData?: boolean };
     const nav = navigator as Navigator & { connection?: ConnInfo };
@@ -73,7 +78,6 @@ export function ProductConfigurator({ product }: { product: Product }) {
     setSlowConnection(slow);
   }, []);
 
-  // Performance marker — measure from mount to first scene-ready callback.
   const mountedAt = useMemo(() => performance.now(), []);
   function handleFirstFrame() {
     const elapsed = performance.now() - mountedAt;
@@ -83,9 +87,17 @@ export function ProductConfigurator({ product }: { product: Product }) {
     }
   }
 
+  const onScreenshotterReady = useCallback((fn: () => string | null) => {
+    screenshotterRef.current = fn;
+  }, []);
+
+  const takeScreenshot = useCallback(() => {
+    return screenshotterRef.current?.() ?? null;
+  }, []);
+
   function selectVariant(v: Variant | null) {
     if (!v) {
-      dispatch(resetVariant());
+      dispatch(setVariant({ variantId: null, color: null, material: null, textureUrl: null }));
       return;
     }
     dispatch(
@@ -131,6 +143,7 @@ export function ProductConfigurator({ product }: { product: Product }) {
               src={product.glbUrl}
               className="h-full w-full"
               onFirstFrame={handleFirstFrame}
+              onScreenshotterReady={onScreenshotterReady}
             />
           ) : (
             <ViewerSkeleton message="3D model unavailable" />
@@ -152,6 +165,16 @@ export function ProductConfigurator({ product }: { product: Product }) {
         <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
           Drag to rotate · scroll to zoom · right-click and drag to pan
         </p>
+
+        {/* On large screens the controls panel sits under the viewer. */}
+        {product.glbUrl && (
+          <div className="hidden lg:block">
+            <ControlsPanel
+              takeScreenshot={takeScreenshot}
+              productTitle={product.title}
+            />
+          </div>
+        )}
       </div>
 
       <aside className="flex flex-col gap-6">
@@ -170,7 +193,7 @@ export function ProductConfigurator({ product }: { product: Product }) {
         {product.variants.length > 0 && (
           <div className="flex flex-col gap-3">
             <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              Customize
+              Vendor variants
             </h2>
             <div className="flex flex-wrap gap-2">
               <VariantChip
@@ -189,6 +212,13 @@ export function ProductConfigurator({ product }: { product: Product }) {
                 />
               ))}
             </div>
+          </div>
+        )}
+
+        {/* On small screens the controls panel lives in the aside (below the variant chips). */}
+        {product.glbUrl && (
+          <div className="lg:hidden">
+            <ControlsPanel takeScreenshot={takeScreenshot} productTitle={product.title} />
           </div>
         )}
 
