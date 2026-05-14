@@ -95,7 +95,7 @@ Update this file whenever the current phase, active feature, or implementation s
   - **Spin** — single toggle labelled "Auto-spin to see every angle". Rotation speed is fixed at a sensible default — no slider.
   - **Save a photo** — secondary Save snapshot button.
   - Header "Reset" link calls `resetTuning()` — clears finish / lighting / backdrop / spin **without** unselecting the vendor variant or the custom color. Footer reminds buyers that customizations are preview-only and orders ship with the picked vendor variant.
-- Feature 56: Configurator Layout — `ProductConfigurator` renders the controls panel **under** the viewer on `lg` (so the model gets full attention while the controls sit in the eyeline below) and **inside the aside below the vendor variant chips** on smaller screens. Both mounts are dynamic-imported with `ssr: false` since the panel depends on Redux. Variant chip section relabelled "Vendor variants" to distinguish the vendor presets from the buyer's personal tweaks.
+- Feature 56: Configurator Layout — `ProductConfigurator` is a 2-column layout on `lg+`: the 3D viewer **stays sticky** on the left (`lg:sticky lg:top-20 lg:self-start`, capped at `max-h-[calc(100dvh-7rem)]` so it always fits the visible viewport), and the configuration aside on the right (vendor name → title → price → vendor variant chips → controls panel → add-to-cart → description → stats) scrolls beside it. Result: every tweak in the controls panel is reflected on the model **without the customer having to scroll back up**. Single mount of `ControlsPanel` (previously two duplicate mounts gated on `lg:hidden` / `hidden lg:block`). On `< lg` the columns stack — viewer on top, then the full aside, identical to the previous mobile experience.
 
 ## In Progress
 

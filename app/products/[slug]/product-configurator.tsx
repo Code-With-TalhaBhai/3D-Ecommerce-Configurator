@@ -135,9 +135,15 @@ export function ProductConfigurator({ product }: { product: Product }) {
   const outOfStock = product.stock <= 0;
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.4fr,1fr]">
-      <div className="flex flex-col gap-3">
-        <div className="relative aspect-square overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 sm:aspect-[4/3] lg:aspect-square">
+    <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[3fr_2fr] md:gap-8">
+      {/*
+        Left column — sticky on md+ so the viewer stays visible while the user
+        scrolls the configuration aside on the right. `aspect-square` keeps the
+        viewer roomy on phones; on md+ we switch to 4:3 and cap by viewport
+        height so the sticky element never overflows the visible area.
+      */}
+      <div className="flex flex-col gap-3 md:sticky md:top-20 md:self-start">
+        <div className="relative aspect-square overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 md:aspect-[4/3] md:max-h-[calc(100vh-7rem)]">
           {product.glbUrl ? (
             <ConfigurableViewer
               src={product.glbUrl}
@@ -165,16 +171,6 @@ export function ProductConfigurator({ product }: { product: Product }) {
         <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
           Drag to rotate · scroll to zoom · right-click and drag to pan
         </p>
-
-        {/* On large screens the controls panel sits under the viewer. */}
-        {product.glbUrl && (
-          <div className="hidden lg:block">
-            <ControlsPanel
-              takeScreenshot={takeScreenshot}
-              productTitle={product.title}
-            />
-          </div>
-        )}
       </div>
 
       <aside className="flex flex-col gap-6">
@@ -215,11 +211,13 @@ export function ProductConfigurator({ product }: { product: Product }) {
           </div>
         )}
 
-        {/* On small screens the controls panel lives in the aside (below the variant chips). */}
+        {/*
+          Single mount of the controls panel, in the aside next to the sticky
+          viewer. Every tweak reflects on the model in real time because the
+          viewer stays in view as the user scrolls through the controls.
+        */}
         {product.glbUrl && (
-          <div className="lg:hidden">
-            <ControlsPanel takeScreenshot={takeScreenshot} productTitle={product.title} />
-          </div>
+          <ControlsPanel takeScreenshot={takeScreenshot} productTitle={product.title} />
         )}
 
         <div className="flex flex-col gap-2">
