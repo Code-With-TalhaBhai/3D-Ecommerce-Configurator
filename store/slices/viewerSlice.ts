@@ -1,44 +1,42 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-export const ENV_PRESETS = [
-  "studio",
-  "sunset",
-  "dawn",
-  "warehouse",
-  "city",
-  "park",
-  "lobby",
-  "apartment",
-  "night",
-  "forest",
+// Customer-facing finish presets. Internally each maps to a roughness +
+// metalness (+ clearcoat) combo on the loaded material — buyers only see
+// the human label.
+export const FINISHES = [
+  "default",
+  "matte",
+  "satin",
+  "glossy",
+  "metallic",
+  "polished",
 ] as const;
-export type EnvPreset = (typeof ENV_PRESETS)[number];
+export type Finish = (typeof FINISHES)[number];
+
+// Customer-facing lighting moods. Each maps to a drei HDR preset internally.
+export const LIGHTING_PRESETS = [
+  "studio",
+  "daylight",
+  "showroom",
+  "cozy",
+  "evening",
+] as const;
+export type LightingPreset = (typeof LIGHTING_PRESETS)[number];
 
 export type ViewerState = {
-  // Vendor-preset reference (still useful for cart line-item attribution).
+  // Vendor variant reference — survives into the cart line item.
   variantId: string | null;
 
-  // Material overrides (null means "use the loaded GLB's original").
+  // Buyer-side material overrides (null = restore the GLB original).
   color: string | null;
   textureUrl: string | null;
   material: string | null;
-  roughness: number;
-  metalness: number;
-  emissiveColor: string;
-  emissiveIntensity: number;
-  clearcoat: number;
-  textureRepeat: number;
+  finish: Finish;
 
-  // Scene
-  envPreset: EnvPreset;
-  envIntensity: number;
+  // Presentation
+  lighting: LightingPreset;
   backgroundColor: string | null;
   autoRotate: boolean;
-  autoRotateSpeed: number;
-
-  // View
-  scale: number;
-  wireframe: boolean;
 };
 
 const defaults: ViewerState = {
@@ -47,54 +45,35 @@ const defaults: ViewerState = {
   color: null,
   textureUrl: null,
   material: null,
-  roughness: 0.5,
-  metalness: 0,
-  emissiveColor: "#000000",
-  emissiveIntensity: 0,
-  clearcoat: 0,
-  textureRepeat: 1,
+  finish: "default",
 
-  envPreset: "studio",
-  envIntensity: 1,
+  lighting: "studio",
   backgroundColor: null,
   autoRotate: false,
-  autoRotateSpeed: 1,
-
-  scale: 1,
-  wireframe: false,
 };
 
 const viewerSlice = createSlice({
   name: "viewer",
   initialState: defaults,
   reducers: {
-    /** Apply a vendor variant — overrides color/material/texture, leaves other axes alone. */
+    /** Apply a vendor variant — overrides color / material / texture / variantId. */
     setVariant(state, action: PayloadAction<Partial<ViewerState>>) {
       Object.assign(state, action.payload);
     },
-    /** Generic partial patch — used by the controls panel for any of the new axes. */
+    /** Generic partial patch for the customer-facing controls. */
     patchViewer(state, action: PayloadAction<Partial<ViewerState>>) {
       Object.assign(state, action.payload);
     },
-    /** Reset everything (including the variant) back to defaults. */
+    /** Reset everything (including the vendor variant) back to defaults. */
     resetVariant() {
       return defaults;
     },
-    /** Reset only the fine-tuning sliders; preserve the variant selection. */
+    /** Reset only the customer's fine-tuning; preserve the picked vendor variant. */
     resetTuning(state) {
-      state.roughness = defaults.roughness;
-      state.metalness = defaults.metalness;
-      state.emissiveColor = defaults.emissiveColor;
-      state.emissiveIntensity = defaults.emissiveIntensity;
-      state.clearcoat = defaults.clearcoat;
-      state.textureRepeat = defaults.textureRepeat;
-      state.envPreset = defaults.envPreset;
-      state.envIntensity = defaults.envIntensity;
+      state.finish = defaults.finish;
+      state.lighting = defaults.lighting;
       state.backgroundColor = defaults.backgroundColor;
       state.autoRotate = defaults.autoRotate;
-      state.autoRotateSpeed = defaults.autoRotateSpeed;
-      state.scale = defaults.scale;
-      state.wireframe = defaults.wireframe;
     },
   },
 });

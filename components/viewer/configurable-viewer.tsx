@@ -12,14 +12,15 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { useAppSelector } from "@/store/hooks";
+import type { Finish, LightingPreset } from "@/store/slices/viewerSlice";
 
 type ConfigurableViewerProps = {
   src: string;
   className?: string;
   onFirstFrame?: () => void;
   /**
-   * Callback that receives a function to capture the canvas as a PNG data URL.
-   * Lets the parent wire a Screenshot button without lifting renderer state.
+   * Receives a function the parent can call to capture the canvas as a PNG
+   * data URL. Lets the parent wire a Save-photo button without lifting state.
    */
   onScreenshotterReady?: (capture: () => string | null) => void;
 };
@@ -27,12 +28,39 @@ type ConfigurableViewerProps = {
 type Original = {
   color: THREE.Color | null;
   map: THREE.Texture | null;
+  roughness: number;
+  metalness: number;
+  clearcoat: number;
+};
+
+// Customer-facing finishes → physical-material numeric values.
+// `null` means "leave the original material untouched".
+type FinishSpec = { roughness: number; metalness: number; clearcoat: number };
+const FINISH_MAP: Record<Finish, FinishSpec | null> = {
+  default: null,
+  matte: { roughness: 0.85, metalness: 0, clearcoat: 0 },
+  satin: { roughness: 0.5, metalness: 0, clearcoat: 0 },
+  glossy: { roughness: 0.15, metalness: 0, clearcoat: 0.3 },
+  metallic: { roughness: 0.3, metalness: 0.85, clearcoat: 0.2 },
+  polished: { roughness: 0.05, metalness: 0.5, clearcoat: 0.5 },
+};
+
+// Customer-facing lighting moods → drei HDR preset names.
+const LIGHTING_TO_DREI: Record<
+  LightingPreset,
+  "studio" | "sunset" | "warehouse" | "lobby" | "apartment"
+> = {
+  studio: "studio",
+  daylight: "sunset",
+  showroom: "warehouse",
+  cozy: "lobby",
+  evening: "apartment",
 };
 
 /**
- * Copy the subset of properties that any THREE.Material is guaranteed to have,
- * for the case where the source isn't MeshStandardMaterial (so the built-in
- * `MeshPhysicalMaterial.copy` would crash reading `source.normalScale.x`).
+ * MeshPhysicalMaterial.copy() walks fields like `normalScale.x` that only
+ * exist on MeshStandardMaterial-shaped sources. For everything else (Basic /
+ * Lambert / Phong / Toon) we copy only the universally-safe subset.
  */
 function copyMaterialSafely(target: THREE.MeshPhysicalMaterial, source: THREE.Material) {
   target.name = source.name;
@@ -44,8 +72,6 @@ function copyMaterialSafely(target: THREE.MeshPhysicalMaterial, source: THREE.Ma
   target.depthWrite = source.depthWrite;
   target.alphaTest = source.alphaTest;
 
-  // Optional fields present on most user-facing materials. Reads via index
-  // signature so we don't promise types Three doesn't guarantee.
   const src = source as unknown as Record<string, unknown>;
   if (src.color instanceof THREE.Color) target.color.copy(src.color);
   if (src.map === null || src.map instanceof THREE.Texture) target.map = src.map ?? null;
@@ -63,11 +89,12 @@ function ConfigurableModel({
 }) {
   const gltf = useGLTF(src);
   const viewer = useAppSelector((s) => s.viewer);
-  // Per-material originals so we can restore color/map when the user clears overrides.
+  // Per-material originals so we can restore color / map / finish when the
+  // user picks "Default" / "Original".
   const originalsRef = useRef<Map<THREE.MeshPhysicalMaterial, Original>>(new Map());
 
-  // First pass — clone every material as MeshPhysicalMaterial (a strict superset of
-  // Standard, adds clearcoat), snapshot originals, swap them in.
+  // Upgrade every cloned material to MeshPhysicalMaterial (superset of Standard
+  // — supports the clearcoat lobe used by Glossy / Metallic / Polished finishes).
   useEffect(() => {
     gltf.scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh) || !obj.material) return;
@@ -76,9 +103,6 @@ function ConfigurableModel({
       const upgraded: THREE.MeshPhysicalMaterial[] = sourceMaterials.map((m) => {
         if (m instanceof THREE.MeshPhysicalMaterial) return m.clone() as THREE.MeshPhysicalMaterial;
         const next = new THREE.MeshPhysicalMaterial();
-        // `MeshPhysicalMaterial.copy` walks fields like `normalScale.x` that only
-        // exist on MeshStandardMaterial-shaped sources. Anything else (Basic /
-        // Lambert / Phong / Toon) needs a hand-rolled subset copy.
         if (m instanceof THREE.MeshStandardMaterial) {
           try {
             next.copy(m);
@@ -96,6 +120,9 @@ function ConfigurableModel({
           originalsRef.current.set(mat, {
             color: mat.color ? mat.color.clone() : null,
             map: mat.map ?? null,
+            roughness: mat.roughness,
+            metalness: mat.metalness,
+            clearcoat: mat.clearcoat,
           });
         }
       }
@@ -106,7 +133,6 @@ function ConfigurableModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gltf.scene]);
 
-  // Helper to iterate every upgraded material with its `Original` snapshot.
   const eachMaterial = (
     cb: (mat: THREE.MeshPhysicalMaterial, originals: Original | undefined) => void,
   ) => {
@@ -131,36 +157,26 @@ function ConfigurableModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewer.color, gltf.scene]);
 
-  // --- Apply roughness / metalness / clearcoat / wireframe ---
+  // --- Apply finish (preset → roughness/metalness/clearcoat, or restore) ---
   useEffect(() => {
-    eachMaterial((mat) => {
-      mat.roughness = viewer.roughness;
-      mat.metalness = viewer.metalness;
-      mat.clearcoat = viewer.clearcoat;
-      mat.clearcoatRoughness = 0.1;
-      mat.wireframe = viewer.wireframe;
+    const spec = FINISH_MAP[viewer.finish];
+    eachMaterial((mat, originals) => {
+      if (spec) {
+        mat.roughness = spec.roughness;
+        mat.metalness = spec.metalness;
+        mat.clearcoat = spec.clearcoat;
+        mat.clearcoatRoughness = 0.1;
+      } else if (originals) {
+        mat.roughness = originals.roughness;
+        mat.metalness = originals.metalness;
+        mat.clearcoat = originals.clearcoat;
+      }
       mat.needsUpdate = true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    viewer.roughness,
-    viewer.metalness,
-    viewer.clearcoat,
-    viewer.wireframe,
-    gltf.scene,
-  ]);
+  }, [viewer.finish, gltf.scene]);
 
-  // --- Apply emissive color + intensity ---
-  useEffect(() => {
-    eachMaterial((mat) => {
-      if (!mat.emissive) return;
-      mat.emissive.set(viewer.emissiveColor);
-      mat.emissiveIntensity = viewer.emissiveIntensity;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer.emissiveColor, viewer.emissiveIntensity, gltf.scene]);
-
-  // --- Apply texture (load if URL set, restore original otherwise) + tile ---
+  // --- Apply texture (load if URL set, restore original otherwise) ---
   useEffect(() => {
     let cancelled = false;
 
@@ -171,7 +187,6 @@ function ConfigurableModel({
         if (next) {
           next.wrapS = THREE.RepeatWrapping;
           next.wrapT = THREE.RepeatWrapping;
-          next.repeat.set(viewer.textureRepeat, viewer.textureRepeat);
           next.needsUpdate = true;
         }
         mat.needsUpdate = true;
@@ -206,7 +221,7 @@ function ConfigurableModel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer.textureUrl, viewer.textureRepeat, gltf.scene]);
+  }, [viewer.textureUrl, gltf.scene]);
 
   return <primitive object={gltf.scene} />;
 }
@@ -220,7 +235,6 @@ export function ConfigurableViewer({
   const viewer = useAppSelector((s) => s.viewer);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
 
-  // Stable identity for the screenshot callback.
   const screenshotter = useMemo(() => {
     return () => {
       const dom = rendererRef.current?.domElement;
@@ -237,13 +251,15 @@ export function ConfigurableViewer({
     onScreenshotterReady?.(screenshotter);
   }, [onScreenshotterReady, screenshotter]);
 
+  const dreiPreset = LIGHTING_TO_DREI[viewer.lighting];
+
   return (
     <div className={className}>
       <Canvas
         shadows
         dpr={[1, 2]}
         camera={{ position: [2, 2, 3], fov: 45 }}
-        // preserveDrawingBuffer lets us read pixels back for screenshots.
+        // preserveDrawingBuffer lets us read pixels back for the Save-photo button.
         gl={{ antialias: true, preserveDrawingBuffer: true }}
         onCreated={({ gl }) => {
           rendererRef.current = gl;
@@ -257,22 +273,16 @@ export function ConfigurableViewer({
         <Suspense fallback={null}>
           <Bounds fit clip observe margin={1.2}>
             <Center>
-              <group scale={viewer.scale}>
-                <ConfigurableModel src={src} onFirstFrame={onFirstFrame} />
-              </group>
+              <ConfigurableModel src={src} onFirstFrame={onFirstFrame} />
             </Center>
           </Bounds>
-          <Environment
-            key={viewer.envPreset}
-            preset={viewer.envPreset}
-            environmentIntensity={viewer.envIntensity}
-          />
+          <Environment key={dreiPreset} preset={dreiPreset} />
         </Suspense>
         <OrbitControls
           makeDefault
           enableDamping
           autoRotate={viewer.autoRotate}
-          autoRotateSpeed={viewer.autoRotateSpeed}
+          autoRotateSpeed={1.5}
         />
       </Canvas>
     </div>
