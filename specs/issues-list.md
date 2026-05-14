@@ -473,3 +473,86 @@ ASSET_PROXY=false
 **Takeaway**
 
 CORS errors on third-party CDNs have two clean solutions: configure the CDN to send the right headers (correct, fast, requires console access and propagation time), or proxy through your own origin (works always, costs runtime). Have both available behind a single env-var toggle so you can pick whichever fits the moment.
+
+---
+
+## Issue 11 — `Cannot read properties of undefined (reading 'x')` upgrading materials in the configurable viewer
+
+**Sprint:** 5–6 — *3D viewer* (texture/color/material customization).
+
+**Symptom**
+
+When the product-detail page mounts `<ConfigurableViewer>` and the user enters the customization flow, React throws at runtime:
+
+```
+Runtime TypeError
+Cannot read properties of undefined (reading 'x')
+components/viewer/configurable-viewer.tsx (54:14) @ ConfigurableModel.useEffect.upgraded
+```
+
+The model never appears; the configurator UI is dead on arrival.
+
+**Root cause**
+
+[components/viewer/configurable-viewer.tsx](../components/viewer/configurable-viewer.tsx) walks the GLB scene, clones every material as `MeshPhysicalMaterial` (a superset of `MeshStandardMaterial`, adding clearcoat etc.), and snapshots the originals so it can restore them when the user clears overrides. The clone path was:
+
+```ts
+const next = new THREE.MeshPhysicalMaterial();
+next.copy(m as THREE.MeshStandardMaterial);
+```
+
+The `as THREE.MeshStandardMaterial` cast was a TypeScript-only assertion — at runtime `m` can be **any** `THREE.Material` subclass, including `MeshBasicMaterial`, `MeshLambertMaterial`, `MeshPhongMaterial`, or `MeshToonMaterial` for older GLB exports. Under the hood, `MeshPhysicalMaterial.copy` chains up through `MeshStandardMaterial.copy`, which does:
+
+```ts
+this.normalScale.copy(source.normalScale);
+this.clearcoatNormalScale.copy(source.clearcoatNormalScale);
+```
+
+…which reads `source.normalScale.x` and `.y`. Non-PBR materials don't have a `normalScale` Vector2, so `source.normalScale` is `undefined` → the recursive `.copy(undefined)` call dereferences `.x` and throws. The error frame name `useEffect.upgraded` is the synthetic name of the inner `.map(…)` callback where the failure happens.
+
+**Fix**
+
+Stopped lying to the type system and started branching on the actual runtime class. Added a hand-rolled `copyMaterialSafely()` helper that copies only the fields every `THREE.Material` is guaranteed to have, plus the optional `color` / `map` / `alphaMap` fields most user-facing materials carry:
+
+```ts
+function copyMaterialSafely(target: THREE.MeshPhysicalMaterial, source: THREE.Material) {
+  target.name = source.name;
+  target.transparent = source.transparent;
+  target.opacity = source.opacity;
+  target.side = source.side;
+  target.visible = source.visible;
+  target.depthTest = source.depthTest;
+  target.depthWrite = source.depthWrite;
+  target.alphaTest = source.alphaTest;
+
+  const src = source as unknown as Record<string, unknown>;
+  if (src.color instanceof THREE.Color) target.color.copy(src.color);
+  if (src.map === null || src.map instanceof THREE.Texture) target.map = src.map ?? null;
+  if (src.alphaMap === null || src.alphaMap instanceof THREE.Texture) {
+    target.alphaMap = src.alphaMap ?? null;
+  }
+}
+```
+
+The upgrade pass now branches on the source class:
+
+```ts
+if (m instanceof THREE.MeshPhysicalMaterial) return m.clone() as THREE.MeshPhysicalMaterial;
+const next = new THREE.MeshPhysicalMaterial();
+if (m instanceof THREE.MeshStandardMaterial) {
+  try { next.copy(m); } catch { copyMaterialSafely(next, m); }
+} else {
+  copyMaterialSafely(next, m);
+}
+```
+
+The `try/catch` belt-and-suspenders inside the `MeshStandardMaterial` branch covers the rare case where a GLTFLoader-produced standard material has had its `normalScale` stripped by a post-processor — we fall back to the safe path instead of crashing.
+
+**Effect**
+
+- GLBs authored against any of the legacy non-PBR materials now load cleanly.
+- Re-tinting via the color picker, swapping textures, and the roughness/metalness/clearcoat sliders all keep working — they only touch fields that `MeshPhysicalMaterial` initializes itself, so they're independent of which fields were copied from the source.
+
+**Takeaway**
+
+`thing as ExpectedType` in TypeScript is a *promise to the compiler*, not a *check against reality*. Whenever a downstream library (Three.js's material copy chain here) reaches into structural fields the cast claims exist, the cast becomes a load-bearing lie. Use `instanceof` to branch on the actual class, and write the safe-subset path for everything else.
