@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { prisma } from "@/lib/prisma";
 import { toCdnUrl } from "@/lib/storage/cdn";
+import { GlbThumbLazy } from "@/components/viewer/glb-thumb-lazy";
 import { SearchBar } from "./search-bar";
 import type { Prisma } from "@/app/generated/prisma/client";
 
@@ -98,6 +99,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
                         alt={p.title}
                         className="h-full w-full object-cover"
                         loading="lazy"
+                      />
+                    ) : p.glbUrl ? (
+                      <GlbThumbLazy
+                        src={toCdnUrl(p.glbUrl)!}
+                        className="h-full w-full"
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-xs uppercase tracking-wider text-zinc-400">
