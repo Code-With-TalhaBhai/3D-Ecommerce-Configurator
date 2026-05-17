@@ -44,7 +44,7 @@ export function SearchBar() {
   return (
     <form
       onSubmit={applyFilters}
-      className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-end"
+      className="flex flex-col gap-3 rounded-2xl border border-zinc-200/80 bg-white/80 p-4 shadow-sm shadow-zinc-900/[0.03] backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-900/80 dark:shadow-none sm:flex-row sm:items-end"
     >
       <div className="flex flex-1 flex-col gap-1.5">
         <label htmlFor="q" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
