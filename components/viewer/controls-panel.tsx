@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, RotateCcw } from "lucide-react";
+import { Camera, RotateCcw, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -67,22 +67,27 @@ export function ControlsPanel({
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          Personalize the view
-        </h2>
+    <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.03] dark:border-zinc-800/80 dark:bg-zinc-900 dark:shadow-none">
+      <header className="flex items-center justify-between border-b border-zinc-200/80 px-5 py-3.5 dark:border-zinc-800/80">
+        <div className="flex items-center gap-2">
+          <span className="grid h-6 w-6 place-items-center rounded-md bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+            <Sparkles className="h-3 w-3" />
+          </span>
+          <h2 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+            Personalize the view
+          </h2>
+        </div>
         <button
           type="button"
           onClick={() => dispatch(resetTuning())}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
           title="Reset finish, lighting, backdrop, and spin"
         >
           <RotateCcw className="h-3 w-3" /> Reset
         </button>
       </header>
 
-      <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
+      <div className="flex flex-col divide-y divide-zinc-200/70 dark:divide-zinc-800/70">
         <Section title="Color" hint="Pick a custom color or one of the swatches.">
           <ColorRow
             value={viewer.color}
@@ -122,13 +127,13 @@ export function ControlsPanel({
         </Section>
 
         <Section title="Save a photo" hint="Capture the current view as an image.">
-          <Button type="button" variant="secondary" onClick={onScreenshot}>
-            <Camera className="h-4 w-4" /> Save snapshot
+          <Button type="button" variant="secondary" onClick={onScreenshot} size="sm">
+            <Camera className="h-3.5 w-3.5" /> Save snapshot
           </Button>
         </Section>
       </div>
 
-      <p className="border-t border-zinc-200 px-4 py-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+      <p className="border-t border-zinc-200/80 bg-zinc-50/60 px-5 py-2.5 text-[11px] leading-relaxed text-zinc-500 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:text-zinc-400">
         Customization here is for preview. Your order ships with the vendor variant you picked above.
       </p>
     </div>
@@ -145,9 +150,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="px-4 py-4">
-      <div className="mb-2.5">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-700 dark:text-zinc-300">
+    <section className="px-5 py-4">
+      <div className="mb-3">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:text-zinc-300">
           {title}
         </h3>
         {hint && (
@@ -168,15 +173,14 @@ function ColorRow({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* "Original" pill clears the override. */}
       <button
         type="button"
         onClick={() => onChange(null)}
         className={cn(
-          "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+          "rounded-full border px-3 py-1 text-xs font-medium tracking-tight transition-colors",
           value === null
-            ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-            : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300",
+            ? "border-zinc-900 bg-zinc-900 text-white shadow-sm shadow-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none"
+            : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600",
         )}
       >
         Original
@@ -191,17 +195,17 @@ function ColorRow({
             title={p.label}
             aria-label={p.label}
             className={cn(
-              "h-8 w-8 rounded-full border-2 transition-transform",
+              "h-8 w-8 rounded-full border shadow-inner ring-offset-2 ring-offset-white transition-all duration-150 dark:ring-offset-zinc-900",
               active
-                ? "scale-110 border-zinc-900 dark:border-zinc-100"
-                : "border-zinc-300 hover:scale-105 dark:border-zinc-700",
+                ? "scale-110 ring-2 ring-zinc-900 border-transparent dark:ring-zinc-100"
+                : "border-zinc-200 hover:scale-105 hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-500",
             )}
             style={{ backgroundColor: p.hex }}
           />
         );
       })}
       <label
-        className="relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-zinc-300 text-[10px] font-semibold text-zinc-500 hover:border-zinc-500 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
+        className="relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-zinc-500 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
         title="Custom color"
         style={
           value && !PALETTE.some((p) => p.hex.toLowerCase() === value.toLowerCase())
@@ -209,7 +213,7 @@ function ColorRow({
             : undefined
         }
       >
-        <span>+</span>
+        <span className="text-sm leading-none">+</span>
         <input
           type="color"
           value={value ?? "#888888"}
@@ -240,18 +244,18 @@ function OptionGrid<T extends string>({
             type="button"
             onClick={() => onSelect(opt.value)}
             className={cn(
-              "flex flex-col items-start rounded-md border px-2.5 py-2 text-left transition-colors",
+              "flex flex-col items-start rounded-lg border px-3 py-2.5 text-left transition-all duration-150",
               isActive
-                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                : "border-zinc-200 bg-white text-zinc-900 hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:border-zinc-600",
+                ? "border-zinc-900 bg-zinc-900 text-white shadow-sm shadow-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none"
+                : "border-zinc-200 bg-white text-zinc-900 hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:border-zinc-600",
             )}
           >
-            <span className="text-xs font-medium">{opt.label}</span>
+            <span className="text-xs font-semibold tracking-tight">{opt.label}</span>
             <span
               className={cn(
                 "text-[10px]",
                 isActive
-                  ? "text-zinc-200 dark:text-zinc-700"
+                  ? "text-zinc-300 dark:text-zinc-600"
                   : "text-zinc-500 dark:text-zinc-400",
               )}
             >
@@ -286,10 +290,10 @@ function BackdropRow({
             type="button"
             onClick={() => onChange(b.value)}
             className={cn(
-              "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium tracking-tight transition-colors",
               active
-                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300",
+                ? "border-zinc-900 bg-zinc-900 text-white shadow-sm shadow-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none"
+                : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600",
             )}
           >
             {b.value && (
@@ -303,7 +307,7 @@ function BackdropRow({
         );
       })}
       <label
-        className="relative inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-dashed border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-600 hover:border-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+        className="relative inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-dashed border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
         title="Custom backdrop color"
       >
         {value && !isPreset && (
@@ -352,7 +356,7 @@ function Toggle({
       >
         <span
           className={cn(
-            "absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all dark:bg-zinc-900",
+            "absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-all dark:bg-zinc-900",
             checked ? "left-[18px]" : "left-0.5",
           )}
         />
@@ -371,4 +375,3 @@ function slugify(s: string) {
       .slice(0, 40) || "snapshot"
   );
 }
-
