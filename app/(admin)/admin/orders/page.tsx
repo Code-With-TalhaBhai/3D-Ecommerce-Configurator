@@ -70,11 +70,10 @@ export default async function AdminOrdersPage({
             <a
               key={s.value}
               href={s.value === "all" ? "/admin/orders" : `/admin/orders?status=${s.value}`}
-              className={`rounded px-3 py-1.5 ${
-                filter === s.value
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-              }`}
+              className={`rounded px-3 py-1.5 ${filter === s.value
+                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                }`}
             >
               {s.label}
             </a>
