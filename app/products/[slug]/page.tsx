@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft, Info } from "lucide-react";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -61,13 +62,14 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   const showChat = !!session?.user && !isVendorOfThisProduct;
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <nav className="mb-6 text-sm">
+    <div className="mx-auto max-w-7xl px-6 py-8">
+      <nav className="mb-6">
         <Link
           href="/products"
-          className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 -ml-2 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
         >
-          ← All products
+          <ArrowLeft className="h-3.5 w-3.5" />
+          All products
         </Link>
       </nav>
 
@@ -91,7 +93,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
       />
 
       {showChat && session?.user && (
-        <div className="mt-12 max-w-2xl">
+        <div className="mt-14 max-w-2xl">
           <ProductChatPanel
             productId={product.id}
             currentUserId={session.user.id}
@@ -102,16 +104,20 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
       )}
 
       {isVendorOfThisProduct && (
-        <div className="mt-12 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-5 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
-          You&apos;re viewing your own product. Customer messages about this listing
-          appear in your{" "}
-          <Link
-            href="/vendor/messages"
-            className="font-medium text-zinc-900 underline-offset-4 hover:underline dark:text-zinc-100"
-          >
-            vendor inbox
-          </Link>
-          .
+        <div className="mt-14 flex items-start gap-3 rounded-2xl border border-zinc-200/80 bg-white/60 p-5 text-sm shadow-sm shadow-zinc-900/[0.03] dark:border-zinc-800/80 dark:bg-zinc-900/40 dark:shadow-none">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+            <Info className="h-4 w-4" />
+          </span>
+          <p className="text-zinc-600 dark:text-zinc-400">
+            You&apos;re viewing your own product. Customer messages about this listing appear in your{" "}
+            <Link
+              href="/vendor/messages"
+              className="font-medium text-zinc-900 underline-offset-4 hover:underline dark:text-zinc-100"
+            >
+              vendor inbox
+            </Link>
+            .
+          </p>
         </div>
       )}
     </div>

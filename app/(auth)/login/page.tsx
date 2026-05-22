@@ -8,7 +8,7 @@ export default function LoginPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+        <h1 className="text-2xl font-semibold tracking-[-0.02em] text-zinc-900 dark:text-zinc-50">
           Welcome back
         </h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">

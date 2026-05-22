@@ -1,32 +1,51 @@
 "use client";
 
-import {
-  Camera,
-  Eraser,
-  Maximize2,
-  Paintbrush,
-  RotateCcw,
-  Sun,
-} from "lucide-react";
-import { useState } from "react";
+import { Camera, RotateCcw, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
-  ENV_PRESETS,
   patchViewer,
   resetTuning,
-  type EnvPreset,
+  type Finish,
+  type LightingPreset,
 } from "@/store/slices/viewerSlice";
 
-type Tab = "material" | "scene" | "view";
+const PALETTE: { label: string; hex: string }[] = [
+  { label: "White", hex: "#f5f5f5" },
+  { label: "Black", hex: "#1a1a1a" },
+  { label: "Charcoal", hex: "#3a3a3a" },
+  { label: "Sand", hex: "#d9c8a8" },
+  { label: "Sage", hex: "#8fa896" },
+  { label: "Slate", hex: "#5a7a9a" },
+  { label: "Wine", hex: "#7a2e3a" },
+  { label: "Olive", hex: "#6a7240" },
+];
 
-const TAB_LABELS: Record<Tab, { label: string; icon: typeof Paintbrush }> = {
-  material: { label: "Material", icon: Paintbrush },
-  scene: { label: "Scene", icon: Sun },
-  view: { label: "View", icon: Maximize2 },
-};
+const FINISH_OPTIONS: { value: Finish; label: string; hint: string }[] = [
+  { value: "default", label: "Original", hint: "As designed" },
+  { value: "matte", label: "Matte", hint: "Soft, no shine" },
+  { value: "satin", label: "Satin", hint: "Gentle sheen" },
+  { value: "glossy", label: "Glossy", hint: "Reflective" },
+  { value: "metallic", label: "Metallic", hint: "Brushed metal" },
+  { value: "polished", label: "Polished", hint: "Mirror-like" },
+];
+
+const LIGHTING_OPTIONS: { value: LightingPreset; label: string; hint: string }[] = [
+  { value: "studio", label: "Studio", hint: "Clean & neutral" },
+  { value: "daylight", label: "Daylight", hint: "Warm sun" },
+  { value: "showroom", label: "Showroom", hint: "Bright" },
+  { value: "cozy", label: "Cozy", hint: "Warm indoor" },
+  { value: "evening", label: "Evening", hint: "Soft & dim" },
+];
+
+const BACKDROP_PRESETS: { label: string; value: string | null }[] = [
+  { label: "None", value: null },
+  { label: "White", value: "#f5f5f5" },
+  { label: "Gray", value: "#bababa" },
+  { label: "Charcoal", value: "#1a1a1a" },
+];
 
 export function ControlsPanel({
   takeScreenshot,
@@ -37,7 +56,6 @@ export function ControlsPanel({
 }) {
   const dispatch = useAppDispatch();
   const viewer = useAppSelector((s) => s.viewer);
-  const [tab, setTab] = useState<Tab>("material");
 
   function onScreenshot() {
     const data = takeScreenshot();
@@ -49,367 +67,263 @@ export function ControlsPanel({
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-        <nav className="flex items-center gap-1">
-          {(Object.entries(TAB_LABELS) as [Tab, (typeof TAB_LABELS)[Tab]][]).map(
-            ([key, { label, icon: Icon }]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                  tab === key
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ),
-          )}
-        </nav>
+    <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.03] dark:border-zinc-800/80 dark:bg-zinc-900 dark:shadow-none">
+      <header className="flex items-center justify-between border-b border-zinc-200/80 px-5 py-3.5 dark:border-zinc-800/80">
+        <div className="flex items-center gap-2">
+          <span className="grid h-6 w-6 place-items-center rounded-md bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+            <Sparkles className="h-3 w-3" />
+          </span>
+          <h2 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+            Personalize the view
+          </h2>
+        </div>
         <button
           type="button"
           onClick={() => dispatch(resetTuning())}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-          title="Reset all sliders to defaults"
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          title="Reset finish, lighting, backdrop, and spin"
         >
           <RotateCcw className="h-3 w-3" /> Reset
         </button>
+      </header>
+
+      <div className="flex flex-col divide-y divide-zinc-200/70 dark:divide-zinc-800/70">
+        <Section title="Color" hint="Pick a custom color or one of the swatches.">
+          <ColorRow
+            value={viewer.color}
+            onChange={(c) => dispatch(patchViewer({ color: c }))}
+          />
+        </Section>
+
+        <Section title="Finish" hint="How the surface catches light.">
+          <OptionGrid
+            options={FINISH_OPTIONS}
+            active={viewer.finish}
+            onSelect={(v) => dispatch(patchViewer({ finish: v as Finish }))}
+          />
+        </Section>
+
+        <Section title="Lighting" hint="Imagine it in different rooms.">
+          <OptionGrid
+            options={LIGHTING_OPTIONS}
+            active={viewer.lighting}
+            onSelect={(v) => dispatch(patchViewer({ lighting: v as LightingPreset }))}
+          />
+        </Section>
+
+        <Section title="Backdrop" hint="Preview against your wall color.">
+          <BackdropRow
+            value={viewer.backgroundColor}
+            onChange={(c) => dispatch(patchViewer({ backgroundColor: c }))}
+          />
+        </Section>
+
+        <Section title="Spin">
+          <Toggle
+            label="Auto-spin to see every angle"
+            checked={viewer.autoRotate}
+            onChange={(v) => dispatch(patchViewer({ autoRotate: v }))}
+          />
+        </Section>
+
+        <Section title="Save a photo" hint="Capture the current view as an image.">
+          <Button type="button" variant="secondary" onClick={onScreenshot} size="sm">
+            <Camera className="h-3.5 w-3.5" /> Save snapshot
+          </Button>
+        </Section>
       </div>
 
-      <div className="px-4 py-4">
-        {tab === "material" && (
-          <MaterialControls
-            color={viewer.color}
-            roughness={viewer.roughness}
-            metalness={viewer.metalness}
-            emissiveColor={viewer.emissiveColor}
-            emissiveIntensity={viewer.emissiveIntensity}
-            clearcoat={viewer.clearcoat}
-            textureRepeat={viewer.textureRepeat}
-            hasTexture={!!viewer.textureUrl}
-            onChange={(patch) => dispatch(patchViewer(patch))}
-          />
-        )}
-        {tab === "scene" && (
-          <SceneControls
-            envPreset={viewer.envPreset}
-            envIntensity={viewer.envIntensity}
-            backgroundColor={viewer.backgroundColor}
-            autoRotate={viewer.autoRotate}
-            autoRotateSpeed={viewer.autoRotateSpeed}
-            onChange={(patch) => dispatch(patchViewer(patch))}
-          />
-        )}
-        {tab === "view" && (
-          <ViewControls
-            scale={viewer.scale}
-            wireframe={viewer.wireframe}
-            onChange={(patch) => dispatch(patchViewer(patch))}
-            onScreenshot={onScreenshot}
-          />
-        )}
-      </div>
-
-      <p className="border-t border-zinc-200 px-4 py-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-        Customizations are visual previews. Cart item ships with the vendor variant you picked above.
+      <p className="border-t border-zinc-200/80 bg-zinc-50/60 px-5 py-2.5 text-[11px] leading-relaxed text-zinc-500 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:text-zinc-400">
+        Customization here is for preview. Your order ships with the vendor variant you picked above.
       </p>
     </div>
   );
 }
 
-function MaterialControls({
-  color,
-  roughness,
-  metalness,
-  emissiveColor,
-  emissiveIntensity,
-  clearcoat,
-  textureRepeat,
-  hasTexture,
-  onChange,
+function Section({
+  title,
+  hint,
+  children,
 }: {
-  color: string | null;
-  roughness: number;
-  metalness: number;
-  emissiveColor: string;
-  emissiveIntensity: number;
-  clearcoat: number;
-  textureRepeat: number;
-  hasTexture: boolean;
-  onChange: (patch: Record<string, unknown>) => void;
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <Label>Base color</Label>
-        <div className="flex items-center gap-2">
-          <ColorSwatch
-            value={color ?? "#ffffff"}
-            onChange={(c) => onChange({ color: c })}
+    <section className="px-5 py-4">
+      <div className="mb-3">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:text-zinc-300">
+          {title}
+        </h3>
+        {hint && (
+          <p className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{hint}</p>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ColorRow({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onChange(null)}
+        className={cn(
+          "rounded-full border px-3 py-1 text-xs font-medium tracking-tight transition-colors",
+          value === null
+            ? "border-zinc-900 bg-zinc-900 text-white shadow-sm shadow-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none"
+            : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600",
+        )}
+      >
+        Original
+      </button>
+      {PALETTE.map((p) => {
+        const active = value?.toLowerCase() === p.hex.toLowerCase();
+        return (
+          <button
+            key={p.hex}
+            type="button"
+            onClick={() => onChange(p.hex)}
+            title={p.label}
+            aria-label={p.label}
+            className={cn(
+              "h-8 w-8 rounded-full border shadow-inner ring-offset-2 ring-offset-white transition-all duration-150 dark:ring-offset-zinc-900",
+              active
+                ? "scale-110 ring-2 ring-zinc-900 border-transparent dark:ring-zinc-100"
+                : "border-zinc-200 hover:scale-105 hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-500",
+            )}
+            style={{ backgroundColor: p.hex }}
           />
-          {color && (
-            <button
-              type="button"
-              onClick={() => onChange({ color: null })}
-              className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-            >
-              <Eraser className="h-3 w-3" /> Clear
-            </button>
-          )}
-        </div>
-      </div>
-
-      <Slider
-        label="Roughness"
-        value={roughness}
-        min={0}
-        max={1}
-        step={0.01}
-        hint={describeRoughness(roughness)}
-        onChange={(v) => onChange({ roughness: v })}
-      />
-      <Slider
-        label="Metalness"
-        value={metalness}
-        min={0}
-        max={1}
-        step={0.01}
-        hint={describeMetalness(metalness)}
-        onChange={(v) => onChange({ metalness: v })}
-      />
-      <Slider
-        label="Clearcoat"
-        value={clearcoat}
-        min={0}
-        max={1}
-        step={0.01}
-        hint={clearcoat > 0 ? "Glossy top layer" : "Off"}
-        onChange={(v) => onChange({ clearcoat: v })}
-      />
-
-      <div className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
-        <div className="mb-3 flex items-center justify-between">
-          <Label>Emissive glow</Label>
-          <div className="flex items-center gap-2">
-            <ColorSwatch
-              value={emissiveColor}
-              onChange={(c) => onChange({ emissiveColor: c })}
-            />
-          </div>
-        </div>
-        <Slider
-          label="Intensity"
-          value={emissiveIntensity}
-          min={0}
-          max={2}
-          step={0.05}
-          hint={emissiveIntensity === 0 ? "Off" : `×${emissiveIntensity.toFixed(2)}`}
-          onChange={(v) => onChange({ emissiveIntensity: v })}
+        );
+      })}
+      <label
+        className="relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-zinc-500 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
+        title="Custom color"
+        style={
+          value && !PALETTE.some((p) => p.hex.toLowerCase() === value.toLowerCase())
+            ? { backgroundColor: value, borderStyle: "solid", color: "transparent" }
+            : undefined
+        }
+      >
+        <span className="text-sm leading-none">+</span>
+        <input
+          type="color"
+          value={value ?? "#888888"}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         />
-      </div>
-
-      {hasTexture && (
-        <Slider
-          label="Texture tile"
-          value={textureRepeat}
-          min={0.5}
-          max={8}
-          step={0.1}
-          hint={`${textureRepeat.toFixed(1)}× tiling`}
-          onChange={(v) => onChange({ textureRepeat: v })}
-        />
-      )}
+      </label>
     </div>
   );
 }
 
-function SceneControls({
-  envPreset,
-  envIntensity,
-  backgroundColor,
-  autoRotate,
-  autoRotateSpeed,
-  onChange,
+function OptionGrid<T extends string>({
+  options,
+  active,
+  onSelect,
 }: {
-  envPreset: EnvPreset;
-  envIntensity: number;
-  backgroundColor: string | null;
-  autoRotate: boolean;
-  autoRotateSpeed: number;
-  onChange: (patch: Record<string, unknown>) => void;
+  options: { value: T; label: string; hint: string }[];
+  active: T;
+  onSelect: (value: T) => void;
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label>HDR environment</Label>
-        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
-          {ENV_PRESETS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onChange({ envPreset: p })}
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {options.map((opt) => {
+        const isActive = active === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onSelect(opt.value)}
+            className={cn(
+              "flex flex-col items-start rounded-lg border px-3 py-2.5 text-left transition-all duration-150",
+              isActive
+                ? "border-zinc-900 bg-zinc-900 text-white shadow-sm shadow-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none"
+                : "border-zinc-200 bg-white text-zinc-900 hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:border-zinc-600",
+            )}
+          >
+            <span className="text-xs font-semibold tracking-tight">{opt.label}</span>
+            <span
               className={cn(
-                "rounded-md border px-2 py-1.5 text-[11px] font-medium capitalize transition-colors",
-                envPreset === p
-                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                  : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-zinc-600",
+                "text-[10px]",
+                isActive
+                  ? "text-zinc-300 dark:text-zinc-600"
+                  : "text-zinc-500 dark:text-zinc-400",
               )}
             >
-              {p}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <Slider
-        label="Environment intensity"
-        value={envIntensity}
-        min={0}
-        max={2}
-        step={0.05}
-        hint={`×${envIntensity.toFixed(2)}`}
-        onChange={(v) => onChange({ envIntensity: v })}
-      />
-
-      <div className="flex items-center justify-between gap-3">
-        <Label>Background</Label>
-        <div className="flex items-center gap-2">
-          {backgroundColor ? (
-            <>
-              <ColorSwatch
-                value={backgroundColor}
-                onChange={(c) => onChange({ backgroundColor: c })}
-              />
-              <button
-                type="button"
-                onClick={() => onChange({ backgroundColor: null })}
-                className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-              >
-                <Eraser className="h-3 w-3" /> Clear
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onChange({ backgroundColor: "#0a0a0a" })}
-              className="rounded-md border border-dashed border-zinc-300 px-2 py-1 text-[11px] text-zinc-600 hover:border-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
-            >
-              Set color
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
-        <Toggle
-          label="Auto-rotate"
-          checked={autoRotate}
-          onChange={(v) => onChange({ autoRotate: v })}
-        />
-        {autoRotate && (
-          <div className="mt-3">
-            <Slider
-              label="Rotation speed"
-              value={autoRotateSpeed}
-              min={0.5}
-              max={5}
-              step={0.1}
-              hint={`${autoRotateSpeed.toFixed(1)}×`}
-              onChange={(v) => onChange({ autoRotateSpeed: v })}
-            />
-          </div>
-        )}
-      </div>
+              {opt.hint}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function ViewControls({
-  scale,
-  wireframe,
-  onChange,
-  onScreenshot,
-}: {
-  scale: number;
-  wireframe: boolean;
-  onChange: (patch: Record<string, unknown>) => void;
-  onScreenshot: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-4">
-      <Slider
-        label="Scale"
-        value={scale}
-        min={0.5}
-        max={2}
-        step={0.05}
-        hint={`${scale.toFixed(2)}×`}
-        onChange={(v) => onChange({ scale: v })}
-      />
-      <Toggle
-        label="Wireframe"
-        checked={wireframe}
-        onChange={(v) => onChange({ wireframe: v })}
-        hint="Show the underlying mesh topology."
-      />
-      <Button type="button" variant="secondary" onClick={onScreenshot} className="self-start">
-        <Camera className="h-4 w-4" /> Save snapshot
-      </Button>
-    </div>
-  );
-}
-
-// --- primitives ---
-
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-      {children}
-    </label>
-  );
-}
-
-function Slider({
-  label,
+function BackdropRow({
   value,
-  min,
-  max,
-  step,
-  hint,
   onChange,
 }: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  hint?: string;
-  onChange: (v: number) => void;
+  value: string | null;
+  onChange: (v: string | null) => void;
 }) {
+  const isPreset = BACKDROP_PRESETS.some(
+    (b) => b.value?.toLowerCase() === value?.toLowerCase(),
+  );
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-          {label}
-        </span>
-        {hint && (
-          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">{hint}</span>
+    <div className="flex flex-wrap items-center gap-2">
+      {BACKDROP_PRESETS.map((b) => {
+        const active =
+          (b.value === null && value === null) ||
+          (b.value && b.value.toLowerCase() === value?.toLowerCase());
+        return (
+          <button
+            key={b.label}
+            type="button"
+            onClick={() => onChange(b.value)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium tracking-tight transition-colors",
+              active
+                ? "border-zinc-900 bg-zinc-900 text-white shadow-sm shadow-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none"
+                : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600",
+            )}
+          >
+            {b.value && (
+              <span
+                className="h-3 w-3 rounded-full border border-black/20 dark:border-white/20"
+                style={{ backgroundColor: b.value }}
+              />
+            )}
+            <span>{b.label}</span>
+          </button>
+        );
+      })}
+      <label
+        className="relative inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-dashed border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-500 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+        title="Custom backdrop color"
+      >
+        {value && !isPreset && (
+          <span
+            className="h-3 w-3 rounded-full border border-black/20 dark:border-white/20"
+            style={{ backgroundColor: value }}
+          />
         )}
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 accent-zinc-900 dark:bg-zinc-800 dark:accent-zinc-100"
-      />
+        <span>Custom</span>
+        <input
+          type="color"
+          value={value && !isPreset ? value : "#cccccc"}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+      </label>
     </div>
   );
 }
@@ -418,22 +332,15 @@ function Toggle({
   label,
   checked,
   onChange,
-  hint,
 }: {
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
-  hint?: string;
 }) {
   return (
-    <label className="flex items-start justify-between gap-3">
-      <span className="flex flex-col gap-0.5">
-        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-          {label}
-        </span>
-        {hint && (
-          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">{hint}</span>
-        )}
+    <label className="flex items-center justify-between gap-3">
+      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+        {label}
       </span>
       <button
         type="button"
@@ -449,7 +356,7 @@ function Toggle({
       >
         <span
           className={cn(
-            "absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all dark:bg-zinc-900",
+            "absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-all dark:bg-zinc-900",
             checked ? "left-[18px]" : "left-0.5",
           )}
         />
@@ -458,49 +365,13 @@ function Toggle({
   );
 }
 
-function ColorSwatch({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label
-      className="relative inline-flex h-7 w-12 cursor-pointer items-center justify-center rounded-md border border-zinc-300 dark:border-zinc-700"
-      style={{ backgroundColor: value }}
-      title="Pick color"
-    >
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-      />
-    </label>
-  );
-}
-
-function describeRoughness(v: number) {
-  if (v < 0.15) return "Mirror polished";
-  if (v < 0.35) return "Glossy";
-  if (v < 0.65) return "Satin";
-  if (v < 0.85) return "Matte";
-  return "Chalky";
-}
-
-function describeMetalness(v: number) {
-  if (v < 0.1) return "Non-metallic";
-  if (v < 0.5) return "Coated";
-  if (v < 0.9) return "Metallic";
-  return "Pure metal";
-}
-
 function slugify(s: string) {
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 40) || "snapshot";
+  return (
+    s
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+      .slice(0, 40) || "snapshot"
+  );
 }

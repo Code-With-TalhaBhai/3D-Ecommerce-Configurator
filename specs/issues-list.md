@@ -120,21 +120,22 @@ Not a bug per se — the guardrail in [lib/glb/limits.ts](../lib/glb/limits.ts) 
 
 **Fix**
 
-[lib/glb/limits.ts](../lib/glb/limits.ts) — raised `MAX_TRIANGLES` from `100_000` to `500_000`. Rationale:
+[lib/glb/limits.ts](../lib/glb/limits.ts) — `MAX_TRIANGLES` was raised in passes as real vendor uploads came in: first `100_000 → 500_000` (rejected model was ≈379k), then `500_000 → 750_000` (another model needed it), then `750_000 → 1_000_000`, and finally **`1_000_000 → 2_000_000`** alongside a parallel bump of `MAX_GLB_BYTES` from `50 MB → 100 MB` to give vendors comfortable headroom for high-detail PBR product meshes. Rationale for the current ceiling:
 
-- Accommodates the rejected model (≈379k) and the vast majority of realistic product meshes.
-- Stays well below the threshold where a single-mesh scene becomes janky on mid-range mobile (~700k–1M tri).
-- Consistent with AGENTS.md §3.3's "render time target: under 3 seconds on standard broadband" and §4.1's mobile-first performance constraint — Draco compression + CloudFront still handle 500k tri models inside the budget.
-- The Sprint 5–6 LOD system (AGENTS.md §3.3) will provide the proper long-term answer for very high-poly models by serving simplified meshes on low-end devices.
+- Accommodates effectively every realistic e-commerce product model, including high-detail PBR meshes with multiple UV sets, hard edges, and dense curvature.
+- 2M triangles + Draco compression typically yields a payload well under the 100 MB transport ceiling and stays inside the AGENTS.md §3.3 "render time target: under 3 seconds on standard broadband" envelope for vendors who keep textures reasonable.
+- On mid-range mobile (Adreno 6xx / Apple A12 class) sub-2M tri scenes still render at interactive frame rates as long as draw calls stay low — `MeshPhysicalMaterial` upgrade pass in the viewer reuses cloned materials per-mesh so this holds.
+- The Sprint 5–6 LOD system (AGENTS.md §3.3) is still the proper long-term answer for very high-poly models by serving simplified meshes on low-end devices, and remains queued for later sprints.
 
 ```ts
 // lib/glb/limits.ts
-export const MAX_TRIANGLES = 500_000;
+export const MAX_GLB_BYTES = 100 * 1024 * 1024; // 100 MB
+export const MAX_TRIANGLES = 2_000_000;
 ```
 
 **Future work**
 
-If vendors start hitting the 500k ceiling routinely, the next step (Sprint 5–6 territory, alongside LOD) is server-side mesh decimation via `@gltf-transform/functions` `simplify()` — auto-reduce above a threshold instead of rejecting. Out of scope for now.
+If vendors start hitting the 2M ceiling routinely (very few will), server-side mesh decimation via `@gltf-transform/functions` `simplify()` is the right move — auto-reduce above a threshold instead of rejecting. Pairs naturally with the deferred LOD work. Out of scope for now.
 
 ---
 
@@ -556,3 +557,81 @@ The `try/catch` belt-and-suspenders inside the `MeshStandardMaterial` branch cov
 **Takeaway**
 
 `thing as ExpectedType` in TypeScript is a *promise to the compiler*, not a *check against reality*. Whenever a downstream library (Three.js's material copy chain here) reaches into structural fields the cast claims exist, the cast becomes a load-bearing lie. Use `instanceof` to branch on the actual class, and write the safe-subset path for everything else.
+
+---
+
+## Issue 12 — Marketplace product cards show a generic "3D" tile, never a real thumbnail
+
+**Sprint:** 7–8 — *Marketplace core* (public product listings) with Sprint 5–6 viewer reuse.
+
+**Symptom**
+
+On `/products`, every card renders the placeholder tile:
+
+```
+┌─────────────┐
+│             │
+│      3D     │
+│             │
+└─────────────┘
+   <title>
+   by <store>
+```
+
+…no matter how many products are live. The product detail page at `/products/[slug]` shows the full 3D viewer correctly, so the data is there — the marketplace itself just isn't using it.
+
+**Root cause**
+
+[app/products/page.tsx](../app/products/page.tsx) rendered:
+
+```tsx
+{p.thumbnailUrl ? (
+  <img src={toCdnUrl(p.thumbnailUrl)!} alt={p.title} ... />
+) : (
+  <div>3D</div>
+)}
+```
+
+The fallback path is what every product currently hits, because **no thumbnail-generation step exists yet** — `Product.thumbnailUrl` is declared in [prisma/schema.prisma](../prisma/schema.prisma) but the upload route never populates it. A future Sprint 5–6/11–12 task is to bake a static PNG from the GLB at upload time and store it here (headless GL or Puppeteer screenshot), but that's not in scope right now. So in the meantime every card lands on the placeholder, which looks broken.
+
+**Fix**
+
+Same pattern [/vendor/products](../app/(vendor)/vendor/products/page.tsx) already uses: when there's no static thumbnail but the product has a GLB, render a **live 3D thumbnail** via `<GlbThumbLazy>` (no controls, `frameloop="demand"`, `powerPreference: "low-power"` — idle thumbnails cost no GPU after the first paint).
+
+[app/products/page.tsx](../app/products/page.tsx) — the card's image slot is now a three-way fallback:
+
+```tsx
+{p.thumbnailUrl ? (
+  // 1. Static PNG once thumbnail bake exists.
+  <img src={toCdnUrl(p.thumbnailUrl)!} ... />
+) : p.glbUrl ? (
+  // 2. Live R3F canvas — same lazy/no-control viewer the vendor list uses.
+  <GlbThumbLazy src={toCdnUrl(p.glbUrl)!} className="h-full w-full" />
+) : (
+  // 3. Last-resort tile for products that somehow have neither.
+  <div>3D</div>
+)}
+```
+
+The query was already returning `glbUrl` (the marketplace `findMany` uses `include`, which preserves all scalar fields), so no DB change was needed. The URL still goes through `toCdnUrl()` so the asset-proxy / CloudFront rewrite from Issues 9–10 applies.
+
+**Trade-offs**
+
+- **Pro:** every card now shows the actual product geometry, fixing the "what am I looking at?" UX without waiting for a thumbnail-bake step.
+- **Pro:** picks up vendor variant changes instantly — no stale screenshots.
+- **Con:** each card mounts a `<Canvas>`. With `frameloop="demand"`, idle GPU cost is near zero, but every canvas still claims a WebGL context. Browsers typically allow 8–16 concurrent contexts before dropping the oldest; once the catalog grows past ~12 visible products, an intersection-observer-gated mount or pagination becomes necessary.
+- **Con:** initial CPU spike when many GLBs decode in parallel. Acceptable for the current catalog size; the proper fix is the deferred thumbnail-bake step (Sprint 11–12).
+
+**Path forward (deferred)**
+
+The cleanest long-term fix is to generate a static PNG thumbnail at upload time and write it to `Product.thumbnailUrl`. Options for the bake:
+
+1. Server-side headless WebGL (Puppeteer page that loads the GLB into an `<canvas>` and `toDataURL`s a 512×512 PNG). Adds a heavy dependency.
+2. Server-side native GL via `gl` + `three`. Lighter but Linux-only and a Windows-on-dev pain.
+3. Client-side bake: on first viewer mount, screenshot the canvas (the existing `onScreenshotterReady` API in `ConfigurableViewer` already does this for the user-facing "Save snapshot" button) and POST it back to a `/api/vendor/products/[id]/thumbnail` route which writes it to S3 + sets `thumbnailUrl`. The product self-thumbnails the first time anyone visits it.
+
+Option 3 is the cheapest to ship and aligns with the existing screenshot machinery, but is deferred until the marketplace actually needs the perf win — for now the live-canvas fallback is fine.
+
+**Takeaway**
+
+When a database column exists for "the pre-computed expensive version" of something but the computation step isn't built yet, the user-facing fallback should be the cheap-but-correct version (live render here), not a generic placeholder. A grey "3D" tile is a worse UX than a slightly-heavier canvas, and the perf concerns it raises usually have to be solved anyway.

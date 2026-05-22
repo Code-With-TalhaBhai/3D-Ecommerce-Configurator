@@ -23,7 +23,7 @@ export default async function NewProductPage() {
           Upload a 3D product
         </h1>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-          GLB files only, up to 50 MB and 100,000 triangles. Models are
+          GLB files only, up to 100 MB and 2,000,000 triangles. Models are
           Draco-compressed on the server and reviewed by an admin before going live.
         </p>
       </div>

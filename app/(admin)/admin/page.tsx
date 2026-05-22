@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowUpRight, Banknote, Clock, Package, Store } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 
@@ -62,29 +63,46 @@ export default async function AdminOverviewPage() {
   const revenue = revenueAgg._sum.total ? Number(revenueAgg._sum.total.toString()) : 0;
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-        Overview
-      </h1>
+    <div className="mx-auto max-w-7xl px-6 py-10">
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+          Admin
+        </span>
+        <h1 className="text-3xl font-semibold tracking-[-0.025em] text-zinc-900 sm:text-4xl dark:text-zinc-50">
+          Overview
+        </h1>
+      </div>
 
       <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <BigStat label="Lifetime revenue" value={formatCurrency(revenue)} accent="emerald" />
-        <BigStat label="Paid orders" value={paidOrders} hint={`${paidOrders30d} in the last 30 days`} />
+        <BigStat
+          label="Lifetime revenue"
+          value={formatCurrency(revenue)}
+          accent="emerald"
+          icon={<Banknote className="h-4 w-4" />}
+        />
+        <BigStat
+          label="Paid orders"
+          value={paidOrders}
+          hint={`${paidOrders30d} in the last 30 days`}
+          icon={<Package className="h-4 w-4" />}
+        />
         <BigStat
           label="Pending review"
           value={pendingProducts}
           href="/admin/products"
           accent={pendingProducts > 0 ? "amber" : undefined}
+          icon={<Clock className="h-4 w-4" />}
         />
         <BigStat
           label="Pending vendors"
           value={pendingVendors}
           href="/admin/vendors"
           accent={pendingVendors > 0 ? "amber" : undefined}
+          icon={<Store className="h-4 w-4" />}
         />
       </section>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-3">
+      <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <SmallStatGroup
           title="Products"
           rows={[
@@ -113,29 +131,30 @@ export default async function AdminOverviewPage() {
         />
       </section>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-[1.4fr,1fr]">
-        <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+      <section className="mt-6 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.03] dark:border-zinc-800/80 dark:bg-zinc-900 dark:shadow-none">
+          <header className="flex items-center justify-between border-b border-zinc-200/80 px-5 py-3 dark:border-zinc-800/80">
+            <h2 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
               Recent orders
             </h2>
             <Link
               href="/admin/orders"
-              className="text-xs text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+              className="inline-flex items-center gap-1 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
-              View all →
+              View all
+              <ArrowUpRight className="h-3 w-3" />
             </Link>
           </header>
           {recentOrders.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
+            <div className="px-5 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
               No orders yet.
             </div>
           ) : (
-            <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+            <ul className="divide-y divide-zinc-200/80 dark:divide-zinc-800/80">
               {recentOrders.map((order) => (
                 <li
                   key={order.id}
-                  className="flex items-center justify-between gap-3 px-5 py-3 text-sm"
+                  className="flex items-center justify-between gap-3 px-5 py-3.5 text-sm transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
@@ -148,7 +167,7 @@ export default async function AdminOverviewPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <OrderStatusPill status={order.status} />
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                    <span className="font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
                       {formatCurrency(Number(order.total.toString()))}
                     </span>
                   </div>
@@ -158,13 +177,13 @@ export default async function AdminOverviewPage() {
           )}
         </div>
 
-        <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <header className="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.03] dark:border-zinc-800/80 dark:bg-zinc-900 dark:shadow-none">
+          <header className="border-b border-zinc-200/80 px-5 py-3 dark:border-zinc-800/80">
+            <h2 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
               Operational alerts
             </h2>
           </header>
-          <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          <ul className="divide-y divide-zinc-200/80 dark:divide-zinc-800/80">
             <AlertRow
               label="Products awaiting review"
               count={pendingProducts}
@@ -188,8 +207,8 @@ export default async function AdminOverviewPage() {
             />
             {topVendorsRaw.length > 0 && (
               <li className="px-5 py-3 text-xs text-zinc-500 dark:text-zinc-400">
-                Top customer:{" "}
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                Top customer spend:{" "}
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">
                   {formatCurrency(Number(topVendorsRaw[0]._sum.total?.toString() ?? "0"))}
                 </span>
               </li>
@@ -207,25 +226,43 @@ function BigStat({
   hint,
   href,
   accent,
+  icon,
 }: {
   label: string;
   value: string | number;
   hint?: string;
   href?: string;
   accent?: "amber" | "emerald";
+  icon?: React.ReactNode;
 }) {
   const accentClass =
     accent === "amber"
-      ? "border-amber-300 bg-amber-50 dark:border-amber-700/60 dark:bg-amber-900/20"
+      ? "border-amber-200/80 bg-gradient-to-br from-amber-50 to-white dark:border-amber-700/40 dark:from-amber-950/30 dark:to-zinc-900"
       : accent === "emerald"
-        ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700/60 dark:bg-emerald-900/20"
-        : "border-zinc-200 dark:border-zinc-800";
+        ? "border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white dark:border-emerald-700/40 dark:from-emerald-950/30 dark:to-zinc-900"
+        : "border-zinc-200/80 bg-white dark:border-zinc-800/80 dark:bg-zinc-900";
+  const iconBg =
+    accent === "amber"
+      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+      : accent === "emerald"
+        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+
   const content = (
-    <div className={`rounded-xl border bg-white p-5 dark:bg-zinc-900 ${accentClass}`}>
-      <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-        {label}
+    <div
+      className={`group relative rounded-2xl border p-5 shadow-sm shadow-zinc-900/[0.03] transition-all dark:shadow-none ${accentClass} ${href ? "hover:-translate-y-0.5 hover:shadow-md hover:shadow-zinc-900/[0.06]" : ""}`}
+    >
+      <div className="flex items-start justify-between">
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+          {label}
+        </div>
+        {icon && (
+          <span className={`grid h-7 w-7 place-items-center rounded-md ${iconBg}`}>
+            {icon}
+          </span>
+        )}
       </div>
-      <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <div className="mt-3 text-3xl font-semibold tracking-[-0.02em] text-zinc-900 dark:text-zinc-50">
         {value}
       </div>
       {hint && (
@@ -248,9 +285,12 @@ function SmallStatGroup({
   return (
     <Link
       href={href}
-      className="block rounded-xl border border-zinc-200 bg-white p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
+      className="group block rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm shadow-zinc-900/[0.03] transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md hover:shadow-zinc-900/[0.06] dark:border-zinc-800/80 dark:bg-zinc-900 dark:shadow-none dark:hover:border-zinc-700"
     >
-      <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{title}</h3>
+        <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-zinc-500" />
+      </div>
       <dl className="mt-3 flex flex-col gap-1.5 text-sm">
         {rows.map((r) => (
           <div key={r.label} className="flex items-center justify-between">
@@ -258,8 +298,8 @@ function SmallStatGroup({
             <dd
               className={
                 r.accent
-                  ? "font-semibold text-amber-700 dark:text-amber-300"
-                  : "font-medium text-zinc-900 dark:text-zinc-100"
+                  ? "font-semibold tabular-nums text-amber-700 dark:text-amber-300"
+                  : "font-semibold tabular-nums text-zinc-900 dark:text-zinc-100"
               }
             >
               {r.value}
@@ -287,14 +327,14 @@ function AlertRow({
     <li>
       <Link
         href={href}
-        className="flex items-center justify-between px-5 py-3 text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-950/40"
+        className="flex items-center justify-between px-5 py-3 text-sm transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40"
       >
         <span className="text-zinc-700 dark:text-zinc-300">{label}</span>
         <span
           className={
             highlight
-              ? "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-200"
-              : "text-sm font-medium text-zinc-500 dark:text-zinc-400"
+              ? "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-2 text-[11px] font-semibold tabular-nums text-amber-900 dark:bg-amber-900/40 dark:text-amber-200"
+              : "text-sm font-semibold tabular-nums text-zinc-500 dark:text-zinc-400"
           }
         >
           {count}

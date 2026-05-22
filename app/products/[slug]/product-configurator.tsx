@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ShoppingCart } from "lucide-react";
+import { Check, Layers, MousePointer2, ShoppingCart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,6 @@ export function ProductConfigurator({ product }: { product: Product }) {
   const [justAdded, setJustAdded] = useState(false);
   const screenshotterRef = useRef<(() => string | null) | null>(null);
 
-  // Reset viewer state when navigating between products.
   useEffect(() => {
     dispatch(resetVariant());
     return () => {
@@ -133,11 +132,13 @@ export function ProductConfigurator({ product }: { product: Product }) {
   }, [cartItems, product.id]);
 
   const outOfStock = product.stock <= 0;
+  const lowStock = !outOfStock && product.stock <= 5;
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.4fr,1fr]">
-      <div className="flex flex-col gap-3">
-        <div className="relative aspect-square overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 sm:aspect-[4/3] lg:aspect-square">
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[3fr_2fr] lg:gap-10">
+      {/* Viewer — sticky on lg+ so customizations reflect without scrolling */}
+      <div className="flex flex-col gap-3 lg:sticky lg:top-20 lg:self-start">
+        <div className="relative aspect-square overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-zinc-50 via-white to-zinc-100 shadow-sm shadow-zinc-900/[0.04] dark:border-zinc-800/80 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950 dark:shadow-none lg:aspect-[4/3] lg:max-h-[calc(100dvh-7rem)]">
           {product.glbUrl ? (
             <ConfigurableViewer
               src={product.glbUrl}
@@ -150,51 +151,60 @@ export function ProductConfigurator({ product }: { product: Product }) {
           )}
 
           {slowConnection && (
-            <div className="absolute left-3 top-3 rounded-full bg-amber-100 px-2.5 py-1 text-xs text-amber-900 dark:bg-amber-900/70 dark:text-amber-100">
-              Slow connection detected — model may take a moment.
+            <div className="absolute left-3 top-3 rounded-full border border-amber-200/80 bg-amber-50/95 px-3 py-1 text-[11px] font-medium text-amber-900 shadow-sm backdrop-blur dark:border-amber-700/40 dark:bg-amber-950/90 dark:text-amber-200">
+              Slow connection — model may take a moment.
             </div>
           )}
 
           {renderMs !== null && process.env.NODE_ENV === "development" && (
-            <div className="absolute bottom-3 right-3 rounded-md bg-black/60 px-2 py-1 font-mono text-[10px] text-white">
+            <div className="absolute bottom-3 right-3 rounded-md bg-black/65 px-2 py-1 font-mono text-[10px] text-white">
               first frame: {renderMs.toFixed(0)} ms
             </div>
           )}
         </div>
 
-        <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
-          Drag to rotate · scroll to zoom · right-click and drag to pan
+        <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-zinc-500 dark:text-zinc-400">
+          <MousePointer2 className="h-3 w-3" />
+          Drag to rotate · scroll to zoom · right-click to pan
         </p>
-
-        {/* On large screens the controls panel sits under the viewer. */}
-        {product.glbUrl && (
-          <div className="hidden lg:block">
-            <ControlsPanel
-              takeScreenshot={takeScreenshot}
-              productTitle={product.title}
-            />
-          </div>
-        )}
       </div>
 
-      <aside className="flex flex-col gap-6">
+      <aside className="flex flex-col gap-7">
         <div>
-          <p className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             {product.vendor.storeName}
           </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.025em] text-zinc-900 sm:text-4xl dark:text-zinc-50">
             {product.title}
           </h1>
-          <p className="mt-2 text-2xl font-medium text-zinc-900 dark:text-zinc-100">
-            ${product.price}
-          </p>
+          <div className="mt-4 flex items-baseline gap-3">
+            <p className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              ${product.price}
+            </p>
+            {outOfStock ? (
+              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-900 dark:bg-red-900/40 dark:text-red-200">
+                Out of stock
+              </span>
+            ) : lowStock ? (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+                Only {product.stock} left
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200">
+                In stock
+              </span>
+            )}
+          </div>
         </div>
 
         {product.variants.length > 0 && (
           <div className="flex flex-col gap-3">
-            <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              Vendor variants
-            </h2>
+            <div className="flex items-center gap-2">
+              <Layers className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+              <h2 className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                Vendor variants
+              </h2>
+            </div>
             <div className="flex flex-wrap gap-2">
               <VariantChip
                 active={activeVariantId === null}
@@ -215,15 +225,12 @@ export function ProductConfigurator({ product }: { product: Product }) {
           </div>
         )}
 
-        {/* On small screens the controls panel lives in the aside (below the variant chips). */}
         {product.glbUrl && (
-          <div className="lg:hidden">
-            <ControlsPanel takeScreenshot={takeScreenshot} productTitle={product.title} />
-          </div>
+          <ControlsPanel takeScreenshot={takeScreenshot} productTitle={product.title} />
         )}
 
         <div className="flex flex-col gap-2">
-          <Button onClick={onAddToCart} disabled={outOfStock} size="lg">
+          <Button onClick={onAddToCart} disabled={outOfStock} size="lg" className="w-full">
             {justAdded ? (
               <>
                 <Check className="h-4 w-4" /> Added to cart
@@ -238,51 +245,46 @@ export function ProductConfigurator({ product }: { product: Product }) {
           </Button>
           {inCartQty > 0 && (
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {inCartQty} in your cart
+              {inCartQty} already in your cart
             </p>
           )}
         </div>
 
-        <div className="border-t border-zinc-200 pt-5 dark:border-zinc-800">
-          <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm shadow-zinc-900/[0.03] dark:border-zinc-800/80 dark:bg-zinc-900 dark:shadow-none">
+          <h2 className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
             About this product
           </h2>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
             {product.description}
           </p>
         </div>
 
-        <dl className="grid grid-cols-2 gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-xs dark:border-zinc-800 dark:bg-zinc-950">
-          <div>
-            <dt className="text-zinc-500 dark:text-zinc-400">Stock</dt>
-            <dd className="font-medium text-zinc-900 dark:text-zinc-100">{product.stock}</dd>
-          </div>
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-zinc-200/80 bg-zinc-200/80 text-xs dark:border-zinc-800/80 dark:bg-zinc-800/80 sm:grid-cols-4">
+          <StatCell label="Stock" value={product.stock.toString()} />
           {product.polyCount !== null && (
-            <div>
-              <dt className="text-zinc-500 dark:text-zinc-400">Triangles</dt>
-              <dd className="font-medium text-zinc-900 dark:text-zinc-100">
-                {product.polyCount.toLocaleString()}
-              </dd>
-            </div>
+            <StatCell label="Triangles" value={product.polyCount.toLocaleString()} />
           )}
           {formatBytes(product.fileSize) && (
-            <div>
-              <dt className="text-zinc-500 dark:text-zinc-400">Model size</dt>
-              <dd className="font-medium text-zinc-900 dark:text-zinc-100">
-                {formatBytes(product.fileSize)}
-              </dd>
-            </div>
+            <StatCell label="Model size" value={formatBytes(product.fileSize)!} />
           )}
           {product.variants.length > 0 && (
-            <div>
-              <dt className="text-zinc-500 dark:text-zinc-400">Variants</dt>
-              <dd className="font-medium text-zinc-900 dark:text-zinc-100">
-                {product.variants.length}
-              </dd>
-            </div>
+            <StatCell label="Variants" value={product.variants.length.toString()} />
           )}
         </dl>
       </aside>
+    </div>
+  );
+}
+
+function StatCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white p-4 dark:bg-zinc-900">
+      <dt className="text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
+        {label}
+      </dt>
+      <dd className="mt-1.5 text-sm font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -305,15 +307,15 @@ function VariantChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+        "group/chip flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium tracking-tight transition-all duration-150",
         active
-          ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-          : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-500",
+          ? "border-zinc-900 bg-zinc-900 text-white shadow-sm shadow-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none"
+          : "border-zinc-200 bg-white text-zinc-700 hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600",
       )}
     >
       {(swatch || texture) && (
         <span
-          className="h-4 w-4 shrink-0 rounded-full border border-black/10 bg-cover bg-center dark:border-white/20"
+          className="h-4 w-4 shrink-0 rounded-full border border-black/10 bg-cover bg-center shadow-inner dark:border-white/20"
           style={{
             backgroundColor: swatch ?? undefined,
             backgroundImage: texture ? `url(${texture})` : undefined,
