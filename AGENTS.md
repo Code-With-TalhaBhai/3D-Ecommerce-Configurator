@@ -31,7 +31,7 @@ The platform replaces static 2D product images with real-time 3D interaction (pa
 ### 3.2 3D Model Upload Pipeline
 
 - Vendors upload GLB / GLTF files directly via the vendor dashboard
-- Enforced file size limit (max 50 MB per model)
+- Enforced file size limit (max 100 MB per model)
 - Enforced polygon count limit to guarantee render performance
 - Server-side Draco compression applied automatically on upload
 - Upload validation: format check, corrupt file detection, MIME type verification

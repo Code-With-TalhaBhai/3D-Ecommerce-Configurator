@@ -13,7 +13,7 @@ import {
 } from "@/lib/glb/limits";
 
 export const runtime = "nodejs";
-// 50 MB GLB + up to 8 textures @ 2 MB; keep ample headroom.
+// 100 MB GLB + up to 8 textures @ 2 MB; keep ample headroom.
 export const maxDuration = 60;
 
 const slugify = (s: string) =>

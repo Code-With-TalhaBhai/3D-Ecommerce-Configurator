@@ -1,5 +1,5 @@
 // Vendor upload constraints (AGENTS.md §3.2).
-export const MAX_GLB_BYTES = 50 * 1024 * 1024; // 50 MB
+export const MAX_GLB_BYTES = 100 * 1024 * 1024; // 100 MB
 export const MAX_TRIANGLES = 2_000_000;
 export const ACCEPTED_MIME = new Set([
   "model/gltf-binary",

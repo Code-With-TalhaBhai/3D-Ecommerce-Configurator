@@ -21,7 +21,7 @@ const GlbViewer = dynamic(
   { ssr: false, loading: () => <ViewerSkeleton message="Loading viewer…" /> },
 );
 
-const MAX_GLB_BYTES = 50 * 1024 * 1024;
+const MAX_GLB_BYTES = 100 * 1024 * 1024;
 const MAX_TEXTURE_BYTES = 2 * 1024 * 1024;
 const MAX_VARIANTS = 8;
 
@@ -83,7 +83,7 @@ export function NewProductForm() {
       return;
     }
     if (f.size > MAX_GLB_BYTES) {
-      setError("File exceeds the 50 MB limit.");
+      setError("File exceeds the 100 MB limit.");
       setFile(null);
       e.target.value = "";
       return;
@@ -213,7 +213,7 @@ export function NewProductForm() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="glb">3D model (.glb, max 50 MB)</Label>
+          <Label htmlFor="glb">3D model (.glb, max 100 MB)</Label>
           <Input
             id="glb"
             name="glb-input"

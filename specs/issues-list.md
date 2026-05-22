@@ -120,21 +120,22 @@ Not a bug per se — the guardrail in [lib/glb/limits.ts](../lib/glb/limits.ts) 
 
 **Fix**
 
-[lib/glb/limits.ts](../lib/glb/limits.ts) — `MAX_TRIANGLES` was raised in two passes as real vendor uploads came in: first `100_000 → 500_000` (rejected model was ≈379k), then `500_000 → 750_000` (another model needed it), and finally **`750_000 → 1_000_000`** once it was clear that PBR product meshes with UV seams and clean topology routinely land in the high hundreds of thousands. Rationale for the current ceiling:
+[lib/glb/limits.ts](../lib/glb/limits.ts) — `MAX_TRIANGLES` was raised in passes as real vendor uploads came in: first `100_000 → 500_000` (rejected model was ≈379k), then `500_000 → 750_000` (another model needed it), then `750_000 → 1_000_000`, and finally **`1_000_000 → 2_000_000`** alongside a parallel bump of `MAX_GLB_BYTES` from `50 MB → 100 MB` to give vendors comfortable headroom for high-detail PBR product meshes. Rationale for the current ceiling:
 
-- Accommodates effectively every realistic e-commerce product model. The rejected ≈379k shoe sits well inside the budget; sub-1M is also where the GLB community generally caps "single-product web ready" work.
-- 1M triangles + Draco compression typically yields a payload under 5 MB, comfortably inside the AGENTS.md §3.3 "render time target: under 3 seconds on standard broadband" envelope.
-- On mid-range mobile (Adreno 6xx / Apple A12 class) 1M tri scenes render at 30+ fps as long as draw calls stay low — `MeshPhysicalMaterial` upgrade pass in the viewer reuses cloned materials per-mesh so this holds.
+- Accommodates effectively every realistic e-commerce product model, including high-detail PBR meshes with multiple UV sets, hard edges, and dense curvature.
+- 2M triangles + Draco compression typically yields a payload well under the 100 MB transport ceiling and stays inside the AGENTS.md §3.3 "render time target: under 3 seconds on standard broadband" envelope for vendors who keep textures reasonable.
+- On mid-range mobile (Adreno 6xx / Apple A12 class) sub-2M tri scenes still render at interactive frame rates as long as draw calls stay low — `MeshPhysicalMaterial` upgrade pass in the viewer reuses cloned materials per-mesh so this holds.
 - The Sprint 5–6 LOD system (AGENTS.md §3.3) is still the proper long-term answer for very high-poly models by serving simplified meshes on low-end devices, and remains queued for later sprints.
 
 ```ts
 // lib/glb/limits.ts
-export const MAX_TRIANGLES = 1_000_000;
+export const MAX_GLB_BYTES = 100 * 1024 * 1024; // 100 MB
+export const MAX_TRIANGLES = 2_000_000;
 ```
 
 **Future work**
 
-If vendors start hitting the 1M ceiling routinely (very few will), server-side mesh decimation via `@gltf-transform/functions` `simplify()` is the right move — auto-reduce above a threshold instead of rejecting. Pairs naturally with the deferred LOD work. Out of scope for now.
+If vendors start hitting the 2M ceiling routinely (very few will), server-side mesh decimation via `@gltf-transform/functions` `simplify()` is the right move — auto-reduce above a threshold instead of rejecting. Pairs naturally with the deferred LOD work. Out of scope for now.
 
 ---
 

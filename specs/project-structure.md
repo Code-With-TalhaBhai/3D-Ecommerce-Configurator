@@ -156,7 +156,7 @@ lib/
 ├── realtime.ts          ← Server: broadcastChatMessage() (subscribe, send, teardown, swallow errors)
 ├── realtime-shared.ts   ← Client-safe constants: CHAT_BROADCAST_EVENT, chatChannelName()
 ├── glb/
-│   ├── limits.ts        ← MAX_GLB_BYTES (50 MB), MAX_TRIANGLES (1M), MAX_TEXTURE_BYTES, MAX_VARIANTS, GLB_MAGIC
+│   ├── limits.ts        ← MAX_GLB_BYTES (100 MB), MAX_TRIANGLES (2M), MAX_TEXTURE_BYTES, MAX_VARIANTS, GLB_MAGIC
 │   └── process.ts       ← NodeIO (cached) + Draco encoder; magic-byte check, triangle count, compression
 ├── storage/
 │   ├── index.ts         ← StorageDriver interface; re-exports the chosen driver (s3Storage today)
