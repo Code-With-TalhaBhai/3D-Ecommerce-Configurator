@@ -4,7 +4,6 @@ import { z } from "zod";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { storage } from "@/lib/storage";
 import {
   ACCEPTED_TEXTURE_MIME,
   MAX_GLB_BYTES,
@@ -15,11 +14,12 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+// 4 MB per chunk: below Vercel's 4.5 MB inbound request cap on every plan tier,
+// with enough headroom for HTTP framing. 100 MB GLB → 25 chunks.
+const CHUNK_SIZE = 4 * 1024 * 1024;
+
 const initSchema = z.object({
-  glb: z.object({
-    size: z.number().int().positive().max(MAX_GLB_BYTES),
-    contentType: z.string().min(1).max(120),
-  }),
+  fileSize: z.number().int().positive().max(MAX_GLB_BYTES),
   textures: z
     .array(
       z.object({
@@ -33,18 +33,10 @@ const initSchema = z.object({
     .default([]),
 });
 
-function textureExt(mime: string) {
-  if (mime === "image/png") return "png";
-  if (mime === "image/webp") return "webp";
-  return "jpg";
-}
-
 /**
- * Step 1 of the two-step vendor upload flow. The browser cannot POST a 100 MB
- * GLB through a Vercel function (4.5 MB Hobby / 50 MB Pro request-body cap),
- * so we hand the browser short-lived presigned PUT URLs and let it upload
- * directly to S3. `/api/vendor/products/upload/complete` then fetches the
- * raw object server-to-server, compresses it, and persists the Product row.
+ * Step 1 of the same-origin chunked upload flow. Issues an upload id and tells
+ * the client how to slice the GLB. No presigned URLs, no browser → S3 calls —
+ * every byte flows through our own API routes, sidestepping S3 CORS entirely.
  */
 export async function POST(req: Request) {
   try {
@@ -88,34 +80,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // Sanity guard on the texture allowlist constant.
     if (!ACCEPTED_TEXTURE_MIME.size) {
-      // Defensive: limits.ts always populates this set.
       return NextResponse.json({ error: "Texture MIME allowlist missing." }, { status: 500 });
     }
 
     const uploadId = randomUUID();
-    const glbKey = `pending/${vendor.id}/${uploadId}.glb`;
-    const glbPresign = await storage.presignPut({
-      key: glbKey,
-      contentType: parsed.data.glb.contentType,
-    });
-
-    const textures = await Promise.all(
-      parsed.data.textures.map(async (t) => {
-        const ext = textureExt(t.contentType);
-        const key = `vendors/${vendor.id}/textures/${uploadId}-${t.index}.${ext}`;
-        const { uploadUrl } = await storage.presignPut({
-          key,
-          contentType: t.contentType,
-        });
-        return { index: t.index, key, uploadUrl };
-      }),
-    );
+    const totalChunks = Math.ceil(parsed.data.fileSize / CHUNK_SIZE);
 
     return NextResponse.json({
       uploadId,
-      glb: { key: glbKey, uploadUrl: glbPresign.uploadUrl },
-      textures,
+      chunkSize: CHUNK_SIZE,
+      totalChunks,
     });
   } catch (err) {
     console.error("[/api/vendor/products/upload/init] unhandled error:", err);

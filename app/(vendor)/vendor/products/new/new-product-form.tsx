@@ -49,19 +49,22 @@ const STAGE_LABEL: Record<ProgressStage, string> = {
   finalizing: "Compressing & saving",
 };
 
+type UploadResult = { status: number; text: string };
+
 /**
- * PUT a Blob to a URL with upload-progress reporting. `fetch` doesn't expose
- * upload progress, so we drop down to XHR for this leg of the flow.
+ * POST a Blob to a same-origin URL with upload-progress reporting. `fetch`
+ * doesn't expose upload progress, so we drop to XHR. Resolves with the raw
+ * status + body text so the caller can parse JSON and surface server errors.
  */
-function putWithProgress(
+function postWithProgress(
   url: string,
   body: Blob,
   contentType: string,
   onProgress: (pct: number) => void,
-): Promise<void> {
+): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url, true);
+    xhr.open("POST", url, true);
     xhr.setRequestHeader("Content-Type", contentType);
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable && e.total > 0) {
@@ -69,19 +72,23 @@ function putWithProgress(
       }
     });
     xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve();
-      } else {
-        reject(new Error(`Storage rejected upload (HTTP ${xhr.status}).`));
-      }
+      resolve({ status: xhr.status, text: xhr.responseText });
     });
-    xhr.addEventListener("error", () => {
-      // CORS failures and network errors both surface here with status 0.
-      reject(new Error("Upload to storage failed. (Network or CORS error.)"));
-    });
+    xhr.addEventListener("error", () =>
+      reject(new Error("Upload failed. (Network error.)")),
+    );
     xhr.addEventListener("abort", () => reject(new Error("Upload aborted.")));
     xhr.send(body);
   });
+}
+
+function parseError(text: string, fallback: string): string {
+  try {
+    const data = JSON.parse(text) as { error?: string };
+    return data.error ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function newVariant(): VariantDraft {
@@ -194,14 +201,14 @@ export function NewProductForm() {
       .filter((x): x is { variant: VariantDraft; index: number; texture: File } => x !== null);
 
     try {
-      // Step 1: ask the server to presign direct-to-S3 PUTs. This sidesteps
-      // Vercel's serverless request-body cap (4.5 MB Hobby / 50 MB Pro) — the
-      // GLB never goes through our function.
+      // Step 1: get an upload id and chunk-size plan from the server. No
+      // presigned URLs — every byte will flow through our same-origin API
+      // routes, so the bucket's CORS config is irrelevant to the upload path.
       const initRes = await fetch("/api/vendor/products/upload/init", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          glb: { size: file.size, contentType: "model/gltf-binary" },
+          fileSize: file.size,
           textures: variantsWithTexture.map(({ index, texture }) => ({
             index,
             size: texture.size,
@@ -212,44 +219,52 @@ export function NewProductForm() {
       const init = (await initRes.json()) as {
         error?: string;
         uploadId?: string;
-        glb?: { key: string; uploadUrl: string };
-        textures?: { index: number; key: string; uploadUrl: string }[];
+        chunkSize?: number;
+        totalChunks?: number;
       };
-      if (!initRes.ok || !init.uploadId || !init.glb) {
+      if (!initRes.ok || !init.uploadId || !init.chunkSize || !init.totalChunks) {
         setError(init.error ?? "Could not initialize upload.");
         return;
       }
 
-      // Step 2: PUT the GLB directly to S3 with progress reporting. The GLB
-      // is the long part — split the overall progress so it owns 0–85%.
+      // Step 2: slice the GLB into chunks and POST them sequentially. Each
+      // chunk POST is same-origin so there's no CORS surface, and each chunk
+      // is below Vercel's request-body cap. GLB upload owns 0–85% of the
+      // progress bar.
+      const { uploadId, chunkSize, totalChunks } = init;
       setProgress({ stage: "uploading_glb", pct: 0 });
-      await putWithProgress(
-        init.glb.uploadUrl,
-        file,
-        "model/gltf-binary",
-        (xhrPct) => {
-          setProgress({
-            stage: "uploading_glb",
-            pct: Math.min(85, Math.round(xhrPct * 0.85)),
-          });
-        },
-      );
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, file.size);
+        const chunk = file.slice(start, end);
+        const chunkRes = await postWithProgress(
+          `/api/vendor/products/upload/chunk?uploadId=${uploadId}&part=${i}`,
+          chunk,
+          "application/octet-stream",
+          (xhrPct) => {
+            const overall = ((i + xhrPct / 100) / totalChunks) * 85;
+            setProgress({ stage: "uploading_glb", pct: Math.min(85, Math.round(overall)) });
+          },
+        );
+        if (chunkRes.status < 200 || chunkRes.status >= 300) {
+          setError(parseError(chunkRes.text, `Chunk ${i + 1} of ${totalChunks} failed.`));
+          return;
+        }
+      }
 
-      // Step 3: PUT each texture directly to S3. Textures are small; map the
-      // collective work to the 85–95% band.
+      // Step 3: POST each variant texture to its own same-origin route.
+      // Textures are <2 MB each, so no chunking. 85–95% of the bar.
       const textureKeysByIndex = new Map<number, string>();
-      const totalTextures = init.textures?.length ?? 0;
+      const totalTextures = variantsWithTexture.length;
       let textureIdx = 0;
-      for (const t of init.textures ?? []) {
-        const tex = variantsWithTexture.find((x) => x.index === t.index);
-        if (!tex) continue;
+      for (const { index, texture } of variantsWithTexture) {
         const slotStart = 85 + (textureIdx / Math.max(1, totalTextures)) * 10;
         const slotSize = 10 / Math.max(1, totalTextures);
         setProgress({ stage: "uploading_textures", pct: Math.round(slotStart) });
-        await putWithProgress(
-          t.uploadUrl,
-          tex.texture,
-          tex.texture.type,
+        const texRes = await postWithProgress(
+          `/api/vendor/products/upload/texture?uploadId=${uploadId}&index=${index}`,
+          texture,
+          texture.type,
           (xhrPct) => {
             setProgress({
               stage: "uploading_textures",
@@ -257,11 +272,22 @@ export function NewProductForm() {
             });
           },
         );
-        textureKeysByIndex.set(t.index, t.key);
+        if (texRes.status < 200 || texRes.status >= 300) {
+          setError(parseError(texRes.text, `Texture upload failed.`));
+          return;
+        }
+        try {
+          const parsed = JSON.parse(texRes.text) as { key?: string };
+          if (parsed.key) textureKeysByIndex.set(index, parsed.key);
+        } catch {
+          // unparseable but 2xx — shouldn't happen, but surface a clear error.
+          setError("Texture upload returned an invalid response.");
+          return;
+        }
         textureIdx++;
       }
 
-      // Step 4: finalize. Server fetches the GLB from S3 server-to-server,
+      // Step 4: finalize. Server pulls every chunk back from S3, concatenates,
       // runs Draco compression, and creates the Product row. We don't know
       // exactly how long compression takes, so pin the bar at 96% during the
       // call.
@@ -270,12 +296,12 @@ export function NewProductForm() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          uploadId: init.uploadId,
+          uploadId,
+          totalChunks,
           title,
           description,
           price,
           stock,
-          glbKey: init.glb.key,
           variants: variants.map((v, i) => {
             const entry: {
               color?: string;
