@@ -32,6 +32,12 @@ function getClient() {
   clientSingleton = new S3Client({
     region,
     credentials: { accessKeyId, secretAccessKey },
+    // AWS SDK v3 (>= 3.730) defaults to adding an `x-amz-checksum-crc32` query
+    // parameter to presigned PUT URLs. The browser cannot recompute that CRC32
+    // against the file body, so the signed URL rejects every browser PUT. Opt
+    // back into "only checksum when S3 actually requires it" so direct-to-S3
+    // uploads from the new-product form work.
+    requestChecksumCalculation: "WHEN_REQUIRED",
   });
   return clientSingleton;
 }
