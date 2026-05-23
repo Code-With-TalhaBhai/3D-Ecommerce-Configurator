@@ -693,3 +693,102 @@ Split the upload into a two-step **presigned-PUT** flow so the GLB never travels
 **Takeaway**
 
 Any browser → server upload above ~4 MB on serverless will hit the platform's request-body cap eventually. Architect uploads around **presigned direct-to-object-storage** from day one: the function generates URLs (tiny JSON in/out), the browser uploads directly, and the function only ever sees the bytes it actually needs (e.g. for server-side processing, fetched server-to-server). Same pattern works for any provider — S3, R2, Supabase Storage, Azure Blob.
+
+---
+
+## Issue 14 — Presigned direct-to-S3 PUT fails: CORS preflight 403 + AWS SDK v3 default CRC32 checksum
+
+**Sprint:** 3–4 — *Upload pipeline* (immediate follow-up to Issue 13).
+
+**Symptom**
+
+After deploying Issue 13's two-step presigned upload flow, the browser still cannot upload the GLB. DevTools shows the **CORS preflight** failing before any bytes go out:
+
+```
+Request URL:  https://model-uploader-bucket.s3.eu-north-1.amazonaws.com/
+              pending/<vendorId>/<uploadId>.glb
+              ?X-Amz-Algorithm=AWS4-HMAC-SHA256
+              &X-Amz-Content-Sha256=UNSIGNED-PAYLOAD
+              &X-Amz-Credential=…&X-Amz-Date=…&X-Amz-Expires=900
+              &X-Amz-Signature=…&X-Amz-SignedHeaders=host
+              &x-amz-checksum-crc32=AAAAAA%3D%3D                   ← problem #2
+              &x-amz-sdk-checksum-algorithm=CRC32                  ← problem #2
+              &x-id=PutObject
+Request Method:  OPTIONS                                           ← problem #1
+Status Code:     403 Forbidden
+```
+
+Two distinct failures stacked on top of each other.
+
+**Root cause #1 — S3 CORS rules not applied (or origin not allow-listed)**
+
+The updated [infra/s3-cors.json](../infra/s3-cors.json) from Issue 13 only takes effect once it's actually pushed to the bucket via `aws s3api put-bucket-cors`. If you only edited the JSON in the repo, the bucket still serves the old `GET, HEAD`-only rules (or no rules at all), so the browser's `OPTIONS … Access-Control-Request-Method: PUT` preflight returns **403 with no `Access-Control-Allow-*` headers**, and the browser cancels the actual PUT before it ever leaves the device.
+
+Same failure mode kicks in if your production origin isn't in `AllowedOrigins`. The JSON ships with:
+
+```
+"AllowedOrigins": ["http://localhost:3000", "https://localhost:3000", "https://*.vercel.app"]
+```
+
+`https://*.vercel.app` covers Vercel's `<project>.vercel.app` and preview deploys. **Custom domains do not match** — `https://shop.example.com` needs to be added explicitly.
+
+**Root cause #2 — AWS SDK v3 default CRC32 checksum in the presigned URL**
+
+`@aws-sdk/client-s3` ≥ 3.730 changed its default request-integrity behavior: `requestChecksumCalculation` defaults to `"WHEN_SUPPORTED"`, which means every `PutObjectCommand` now carries an `x-amz-checksum-crc32` field. When that command is handed to `getSignedUrl()`, the SDK can't compute the real CRC32 (it has no body at presign time), so it bakes a **placeholder value (`AAAAAA==`)** into the signed query string. The browser's subsequent PUT sends the actual file bytes — S3 recomputes CRC32, doesn't match the placeholder, and rejects the upload with `BadDigest` / `400`.
+
+This second failure is currently masked by the CORS 403 — but as soon as CORS is fixed, this would be the next error.
+
+**Fix #1 — Apply the CORS config to the bucket**
+
+From the project root with AWS CLI authenticated against the bucket-owning account:
+
+```bash
+aws s3api put-bucket-cors \
+  --bucket model-uploader-bucket \
+  --cors-configuration file://infra/s3-cors.json
+```
+
+Verify it was applied:
+
+```bash
+aws s3api get-bucket-cors --bucket model-uploader-bucket
+```
+
+The output should list `["GET", "HEAD", "PUT"]` under `AllowedMethods` and your origin under `AllowedOrigins`. If you're on a non-Vercel custom domain, add it to `infra/s3-cors.json` and re-run the `put-bucket-cors` command.
+
+Browser-side: CORS preflight responses are cached. After re-applying, **hard-refresh** the upload page (Cmd-Shift-R / Ctrl-Shift-R) so the browser drops the stale negative preflight result.
+
+**Fix #2 — Opt out of the SDK's default checksum calculation**
+
+[lib/storage/s3.ts](../lib/storage/s3.ts) — the `S3Client` singleton now sets:
+
+```ts
+new S3Client({
+  region,
+  credentials: { accessKeyId, secretAccessKey },
+  requestChecksumCalculation: "WHEN_REQUIRED",
+});
+```
+
+`"WHEN_REQUIRED"` (vs. the new default `"WHEN_SUPPORTED"`) means the SDK only adds checksum metadata for API operations that **mandate** it (almost none in S3's regular object API). `PutObject` no longer carries an `x-amz-checksum-crc32` field, so the presigned URL no longer requires the browser to send a checksum it can't compute. Existing `upload()` / `getObjectBytes()` / `headObject()` paths are unaffected — they don't go through presigning.
+
+**Verification**
+
+After Fix #1 + Fix #2 are both in place, the failing request becomes:
+
+```
+Request URL:  https://model-uploader-bucket.s3.eu-north-1.amazonaws.com/
+              pending/<vendorId>/<uploadId>.glb?X-Amz-Algorithm=…
+              &X-Amz-Credential=…&X-Amz-Signature=…&X-Amz-SignedHeaders=host&x-id=PutObject
+Request Method:  PUT
+Status Code:     200 OK
+```
+
+— note the absent `x-amz-checksum-*` query params and the OPTIONS preflight now returning 200/204 with the right `Access-Control-Allow-Origin` echoing your origin.
+
+**Takeaway**
+
+Two-step gotcha pattern when wiring presigned direct-to-S3 from a browser:
+
+1. **CORS is half code, half ops.** The JSON in `infra/` is just a record — it does nothing until `put-bucket-cors` actually pushes it, and the wildcard scope must match the actual origin. If your preflight returns 403, the CORS rule isn't matching — not a code problem.
+2. **Recent AWS SDK defaults break browser presigned PUTs out of the box.** Set `requestChecksumCalculation: "WHEN_REQUIRED"` on any S3 client used for presigning until/unless you build a checksum-aware uploader client-side (compute the CRC32 of the file in the browser before requesting the presign — overkill for this app).
