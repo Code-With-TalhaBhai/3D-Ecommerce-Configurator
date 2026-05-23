@@ -130,36 +130,105 @@ export function NewProductForm() {
     setError(null);
     setFieldErrors({});
 
-    const formData = new FormData(e.currentTarget);
-    formData.set("glb", file);
+    const formEl = e.currentTarget;
+    const fd = new FormData(formEl);
+    const title = String(fd.get("title") ?? "");
+    const description = String(fd.get("description") ?? "");
+    const price = Number(fd.get("price") ?? 0);
+    const stock = Number(fd.get("stock") ?? 0);
 
-    // Serialize variants as JSON + attach texture files under predictable keys.
-    if (variants.length > 0) {
-      const meta = variants.map((v, i) => {
-        const entry: { color?: string; material?: string; textureKey?: string } = {};
-        if (v.color) entry.color = v.color;
-        if (v.material.trim()) entry.material = v.material.trim();
-        if (v.texture) {
-          const key = `texture_${i}`;
-          entry.textureKey = key;
-          formData.set(key, v.texture);
-        }
-        return entry;
-      });
-      formData.set("variants", JSON.stringify(meta));
-    }
+    const variantsWithTexture = variants
+      .map((v, i) => (v.texture ? { variant: v, index: i, texture: v.texture } : null))
+      .filter((x): x is { variant: VariantDraft; index: number; texture: File } => x !== null);
 
     try {
-      const res = await fetch("/api/vendor/products/upload", {
+      // Step 1: ask the server to presign direct-to-S3 PUTs. This sidesteps
+      // Vercel's serverless request-body cap (4.5 MB Hobby / 50 MB Pro) — the
+      // GLB never goes through our function.
+      const initRes = await fetch("/api/vendor/products/upload/init", {
         method: "POST",
-        body: formData,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          glb: { size: file.size, contentType: "model/gltf-binary" },
+          textures: variantsWithTexture.map(({ index, texture }) => ({
+            index,
+            size: texture.size,
+            contentType: texture.type,
+          })),
+        }),
       });
-      const data = (await res.json()) as {
+      const init = (await initRes.json()) as {
+        error?: string;
+        uploadId?: string;
+        glb?: { key: string; uploadUrl: string };
+        textures?: { index: number; key: string; uploadUrl: string }[];
+      };
+      if (!initRes.ok || !init.uploadId || !init.glb) {
+        setError(init.error ?? "Could not initialize upload.");
+        return;
+      }
+
+      // Step 2: PUT the GLB directly to S3. The Content-Type must match what
+      // we signed; the browser sets Content-Length automatically.
+      const glbPut = await fetch(init.glb.uploadUrl, {
+        method: "PUT",
+        headers: { "content-type": "model/gltf-binary" },
+        body: file,
+      });
+      if (!glbPut.ok) {
+        setError(`GLB upload to storage failed (${glbPut.status}).`);
+        return;
+      }
+
+      // Step 3: PUT each texture directly to S3.
+      const textureKeysByIndex = new Map<number, string>();
+      for (const t of init.textures ?? []) {
+        const tex = variantsWithTexture.find((x) => x.index === t.index);
+        if (!tex) continue;
+        const put = await fetch(t.uploadUrl, {
+          method: "PUT",
+          headers: { "content-type": tex.texture.type },
+          body: tex.texture,
+        });
+        if (!put.ok) {
+          setError(`Texture upload to storage failed (${put.status}).`);
+          return;
+        }
+        textureKeysByIndex.set(t.index, t.key);
+      }
+
+      // Step 4: finalize. Server fetches the GLB from S3 server-to-server,
+      // runs Draco compression, and creates the Product row.
+      const completeRes = await fetch("/api/vendor/products/upload/complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          uploadId: init.uploadId,
+          title,
+          description,
+          price,
+          stock,
+          glbKey: init.glb.key,
+          variants: variants.map((v, i) => {
+            const entry: {
+              color?: string;
+              material?: string;
+              textureKey?: string;
+            } = {};
+            if (v.color) entry.color = v.color;
+            if (v.material.trim()) entry.material = v.material.trim();
+            const tk = textureKeysByIndex.get(i);
+            if (tk) entry.textureKey = tk;
+            return entry;
+          }),
+        }),
+      });
+      const data = (await completeRes.json()) as {
         error?: string;
         fieldErrors?: FieldErrors;
         product?: { id: string };
       };
-      if (!res.ok) {
+      if (!completeRes.ok) {
         setError(data.error ?? "Upload failed.");
         if (data.fieldErrors) setFieldErrors(data.fieldErrors);
         return;

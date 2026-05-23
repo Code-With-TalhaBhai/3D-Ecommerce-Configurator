@@ -635,3 +635,61 @@ Option 3 is the cheapest to ship and aligns with the existing screenshot machine
 **Takeaway**
 
 When a database column exists for "the pre-computed expensive version" of something but the computation step isn't built yet, the user-facing fallback should be the cheap-but-correct version (live render here), not a generic placeholder. A grey "3D" tile is a worse UX than a slightly-heavier canvas, and the perf concerns it raises usually have to be solved anyway.
+
+---
+
+## Issue 13 — `POST /api/vendor/products/upload` returns 413 `FUNCTION_PAYLOAD_TOO_LARGE` on Vercel
+
+**Sprint:** 3–4 — *Upload pipeline* (deployment-blocking; localhost was fine, production failed).
+
+**Symptom**
+
+Vendor product uploads succeed in local development but fail in production on Vercel with a platform-level error page (not a JSON body from our handler):
+
+```
+413 Content Too Large
+Request Entity Too Large
+
+FUNCTION_PAYLOAD_TOO_LARGE
+bom1::x7z6x-1779558278419-cc06f21b18e8
+```
+
+The request never reaches our route handler — Vercel's edge gateway rejects it before invocation, so the `try/catch` added in Issue 1 can't surface a friendlier error and `console.error` never fires.
+
+**Root cause**
+
+Vercel's serverless functions have a **hard per-invocation request-body cap**: 4.5 MB on Hobby and 50 MB on Pro (Fluid Compute). The original [app/api/vendor/products/upload/route.ts](../app/api/vendor/products/upload/route.ts) accepted the entire GLB through `request.formData()`, so the file payload had to fit under that cap. Our app advertises a 100 MB ceiling (`MAX_GLB_BYTES` in [lib/glb/limits.ts](../lib/glb/limits.ts)) and even a typical mid-detail product mesh post-Issue 4 routinely sits in the 10–50 MB range — well past the Hobby cap, and above the Pro cap once you account for multipart framing overhead. Locally there's no such cap because `next dev` just streams the body into the route, which is why the bug only manifested after deployment.
+
+This was a known risk — Issue 10 even calls it out: *"Vercel's serverless function payload limit (4.5 MB on the free tier, 50 MB on Pro) would cap GLB sizes once deployed."* That note covered the asset proxy direction (server → browser). This issue is the upload direction (browser → server), where the cap bites first.
+
+Importantly, the cap is **inbound only**. Outbound `fetch()` from a Vercel function has no payload limit — so a function *fetching* a 100 MB object from S3 server-to-server is fine. The fix exploits that asymmetry.
+
+**Fix**
+
+Split the upload into a two-step **presigned-PUT** flow so the GLB never travels through a Vercel function on the way in:
+
+1. **New [app/api/vendor/products/upload/init/route.ts](../app/api/vendor/products/upload/init/route.ts)** — accepts a tiny JSON body (`{ glb: { size, contentType }, textures: [{ index, size, contentType }] }`), validates auth + vendor + size/MIME, generates a single `uploadId` (UUID), and returns **short-lived presigned S3 PUT URLs** for the GLB and each declared texture. Init traffic is a few hundred bytes — well under any cap.
+2. **Browser PUTs directly to S3** using those signed URLs. The GLB key is parked under a temp namespace `pending/{vendorId}/{uploadId}.glb`; textures land at their final permanent path `vendors/{vendorId}/textures/{uploadId}-{index}.{ext}` (textures aren't compressed, so no second copy is needed).
+3. **New [app/api/vendor/products/upload/complete/route.ts](../app/api/vendor/products/upload/complete/route.ts)** — accepts the small JSON metadata (title, description, price, stock, `uploadId`, `glbKey`, variants). Re-auths the vendor, enforces that the supplied keys live under the vendor's own `pending/{vendorId}/{uploadId}` / `vendors/{vendorId}/textures/{uploadId}-` prefixes (so one vendor can't claim another's upload), `HEAD`s every object to re-validate size and MIME against `MAX_GLB_BYTES` / `MAX_TEXTURE_BYTES`, then **fetches the GLB server-to-server**, runs [processGlb](../lib/glb/process.ts) (Draco compression unchanged), uploads the compressed copy to its permanent key `vendors/{vendorId}/products/{slug}-{ts}.glb`, deletes the temp raw object, and creates the `Product` + `ProductVariant` rows. Same response shape as before so the form handles success identically.
+4. **[lib/storage/s3.ts](../lib/storage/s3.ts) + [lib/storage/index.ts](../lib/storage/index.ts)** — `StorageDriver` interface grew three methods: `presignPut({ key, contentType })` (wraps `@aws-sdk/s3-request-presigner` `getSignedUrl` on a `PutObjectCommand`, default 15-minute expiry), `getObjectBytes(key)` (server-side `GetObjectCommand` → `transformToByteArray()`), and `headObject(key)` (returns `null` on 404 instead of throwing). Driver-agnostic — swapping storage providers stays a single-file change.
+5. **[app/(vendor)/vendor/products/new/new-product-form.tsx](../app/(vendor)/vendor/products/new/new-product-form.tsx)** — replaced the single `fetch("/api/vendor/products/upload", { body: formData })` call with the new sequence: `POST /init` → `PUT` GLB to S3 → `PUT` each texture to S3 → `POST /complete`. The user-visible UX is identical — same "Uploading & compressing…" button label, same field-error surfacing, same redirect to `/vendor/products` on success.
+6. **[infra/s3-cors.json](../infra/s3-cors.json)** — added `PUT` to `AllowedMethods` (was `GET, HEAD` only — see Issue 8) and added `https://*.vercel.app` to `AllowedOrigins` so production previews can PUT. Reapply with `aws s3api put-bucket-cors --bucket model-uploader-bucket --cors-configuration file://infra/s3-cors.json`. Add the deployed custom domain to `AllowedOrigins` once it's provisioned.
+7. The legacy `app/api/vendor/products/upload/route.ts` was deleted — its responsibilities now live in `init/` and `complete/`. No callers remained outside the vendor upload form.
+
+**Why presigned PUTs over alternatives**
+
+- *Just bump Pro tier:* 50 MB still doesn't cover the 100 MB ceiling, and the platform cap is non-configurable inside the function.
+- *Move compression to the client:* `draco3dgltf` runs in WASM in browsers, but bundling it on the upload page would push the JS payload up by ~600 KB and make the upload form much heavier to first-paint. Server-side compression also stays the authoritative validation step (poly count, magic bytes, etc.).
+- *Vercel Blob / Edge Functions:* would re-introduce a platform-controlled cap and lock us further into Vercel. Direct-to-S3 keeps the storage driver swappable per AGENTS §6.
+- *Chunked uploads to our function:* Vercel's cap applies per request, not per byte, so chunking would require us to assemble fragments somewhere — which still needs S3 in the loop. Presigned single-PUT is strictly simpler.
+
+**Security**
+
+- Presigned PUT URLs expire in 15 minutes (`expiresIn: 900`) — short enough that a leaked URL is nearly worthless.
+- Each URL is scoped to a single key path under `{vendorId}/{uploadId}`, so the only thing a leaked URL can do is overwrite *that* specific upload slot.
+- `/complete` re-validates that the caller's vendor owns the key prefix and that every object actually exists with the expected size + MIME before persisting anything to the DB.
+- The pending GLB is deleted as soon as the compressed copy is durable, so orphans only happen when a vendor abandons mid-flow (textures included). A bucket lifecycle policy on the `pending/` prefix (e.g. expire after 24 hours) is the right longer-term cleanup; for now it's a few KB–MB of slop per abandoned upload.
+
+**Takeaway**
+
+Any browser → server upload above ~4 MB on serverless will hit the platform's request-body cap eventually. Architect uploads around **presigned direct-to-object-storage** from day one: the function generates URLs (tiny JSON in/out), the browser uploads directly, and the function only ever sees the bytes it actually needs (e.g. for server-side processing, fetched server-to-server). Same pattern works for any provider — S3, R2, Supabase Storage, Azure Blob.

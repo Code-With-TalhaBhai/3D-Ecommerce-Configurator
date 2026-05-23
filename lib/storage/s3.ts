@@ -2,9 +2,12 @@ import "server-only";
 
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import type { StorageDriver } from "./index";
 
@@ -47,6 +50,49 @@ export const s3Storage: StorageDriver = {
       }),
     );
     return { key, url: this.publicUrl(key) };
+  },
+
+  async presignPut({ key, contentType, expiresIn }) {
+    const { bucket } = readEnv();
+    const client = getClient();
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+    const uploadUrl = await getSignedUrl(client, command, {
+      expiresIn: expiresIn ?? 900,
+    });
+    return { key, uploadUrl };
+  },
+
+  async getObjectBytes(key) {
+    const { bucket } = readEnv();
+    const client = getClient();
+    const out = await client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
+    if (!out.Body) throw new Error(`Empty body for key ${key}`);
+    return out.Body.transformToByteArray();
+  },
+
+  async headObject(key) {
+    const { bucket } = readEnv();
+    const client = getClient();
+    try {
+      const out = await client.send(
+        new HeadObjectCommand({ Bucket: bucket, Key: key }),
+      );
+      return {
+        contentLength: out.ContentLength ?? 0,
+        contentType: out.ContentType ?? undefined,
+      };
+    } catch (err) {
+      const status = (err as { $metadata?: { httpStatusCode?: number } })
+        .$metadata?.httpStatusCode;
+      if (status === 404) return null;
+      throw err;
+    }
   },
 
   publicUrl(key) {
