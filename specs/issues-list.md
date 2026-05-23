@@ -912,3 +912,74 @@ After Fix #1 is applied to the bucket and Fix #2 is deployed:
 **Takeaway**
 
 When a CORS preflight 403 persists across multiple fixes, the answer is almost always *the rule simply isn't applied to the bucket you think it is*. Verify with `get-bucket-cors` against the exact bucket and region before iterating on the JSON. And: any user-facing upload over ~5 MB should use XHR (or `fetch` + a manual `ReadableStream` reader, but XHR is simpler) so the UI has something honest to say while bytes travel.
+
+---
+
+## Issue 16 — S3 CORS still blocks the presigned PUT in production; switch to same-origin chunked uploads
+
+**Sprint:** 3–4 — *Upload pipeline* (deployment-blocking; closes out the CORS thread that started in Issue 14).
+
+**Symptom**
+
+Even with Issue 15's `AllowedOrigins: ["*"]` config and the `requestChecksumCalculation` fix from Issue 14, the production deploy at `https://3-d-ecommerce-configurator.vercel.app` still fails:
+
+```
+Access to XMLHttpRequest at 'https://model-uploader-bucket.s3.eu-north-1.amazonaws.com/
+pending/<vendorId>/<uploadId>.glb?X-Amz-Algorithm=AWS4-HMAC-SHA256&…' from origin
+'https://3-d-ecommerce-configurator.vercel.app' has been blocked by CORS policy:
+Response to preflight request doesn't pass access control check: No
+'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+Same shape as Issue 15. The CORS config in this repo is correct — the problem is operational: the JSON either isn't reaching the bucket, isn't being applied to the right account/region, or is being overridden by something else in the AWS environment that's hard to debug from the outside.
+
+**Root cause**
+
+Whatever the exact AWS-side reason, **the architecture has a fragility**: the browser is making a cross-origin request to S3 at all. Any time the browser → S3 leg exists, the bucket's CORS rules become a load-bearing piece of *infrastructure config* that has to be applied per environment, per account, per region — and silently breaks the upload UX if any of those is off. Three issues (14, 15, 16) on the same root structural assumption is the signal that the assumption itself needs to go.
+
+The fix is to **remove the browser → S3 leg entirely** and run every upload byte through our own Next.js API routes. Browser → Next.js is same-origin → no CORS preflight, no AWS-side config dependency at all. The Next.js function then does server → S3 in the trusted backend, which has never been a CORS problem (server fetches don't carry an `Origin` header that S3 evaluates).
+
+The blocker that used to make this impossible was Vercel's per-invocation request-body cap (4.5 MB Hobby / 50 MB Pro — Issue 13). The way around that without giving up on a 100 MB ceiling is chunked uploads: split the file into ~4 MB chunks client-side, POST each chunk to a same-origin route, reassemble server-side.
+
+**Fix**
+
+Replaced the presigned-PUT flow from Issues 13–15 with a **same-origin chunked upload** flow. Every byte the browser sends now goes to a `/api/vendor/products/upload/...` route on the same origin as the app.
+
+1. **[app/api/vendor/products/upload/init/route.ts](../app/api/vendor/products/upload/init/route.ts)** — no longer returns presigned URLs. Just validates auth + vendor, generates a `uploadId` UUID, computes `totalChunks = Math.ceil(fileSize / 4 MB)`, and returns `{ uploadId, chunkSize, totalChunks }`. Chunk size is 4 MB — comfortably below Vercel's 4.5 MB inbound cap on every plan tier, including Hobby.
+2. **New [app/api/vendor/products/upload/chunk/route.ts](../app/api/vendor/products/upload/chunk/route.ts)** — receives one chunk per POST. Query params `?uploadId=&part=N` identify the slot; body is raw bytes (`Content-Type: application/octet-stream`, read via `req.arrayBuffer()`). Each chunk gets persisted to S3 at `pending/{vendorId}/{uploadId}/chunk-NNNN.bin` (zero-padded so lexicographic order matches numeric order — useful for any future list-and-resume work). Defensive 413 if a chunk somehow arrives above the cap.
+3. **New [app/api/vendor/products/upload/texture/route.ts](../app/api/vendor/products/upload/texture/route.ts)** — same shape for textures (which are always < 2 MB, so they don't need chunking). Persists each texture to its final permanent key `vendors/{vendorId}/textures/{uploadId}-{index}.{ext}` and returns the key so the client can reference it on /complete.
+4. **[app/api/vendor/products/upload/complete/route.ts](../app/api/vendor/products/upload/complete/route.ts)** — rewritten to reassemble. Body is JSON metadata (`uploadId`, `totalChunks`, product fields, variants with `textureKey` references). The route:
+   - HEAD-validates every referenced texture key (still scoped under this vendor + uploadId prefix).
+   - Pulls every chunk back from S3 in parallel via `Promise.all(getObjectBytes(...))` — server → S3 has no payload cap, so the only ceiling is process memory while the buffers are alive (bounded by `MAX_GLB_BYTES` = 100 MB; well within Vercel's 1 GB Hobby / 3 GB Pro memory budget).
+   - Concatenates into a single `Uint8Array`, drops the chunk-array reference for the GC, then runs `processGlb` as before.
+   - Uploads the compressed result to its permanent key, deletes every temp chunk in parallel, and creates the `Product` + `ProductVariant` rows.
+5. **[app/(vendor)/vendor/products/new/new-product-form.tsx](../app/(vendor)/vendor/products/new/new-product-form.tsx)** — the helper renamed from `putWithProgress` to `postWithProgress` and now resolves with `{ status, text }` so the caller can parse the server's JSON error body and surface real messages (rather than the prior "Storage rejected upload" generic). The `onSubmit` flow is now: `POST /init` → loop `POST /chunk?part=i` for i in 0..totalChunks-1 (sequentially, with per-chunk progress events feeding the bar) → for each variant texture, `POST /texture?index=i` → `POST /complete` with the texture-key map.
+
+**Why this is structurally better than fixing CORS**
+
+- **One less load-bearing AWS dependency.** Bucket CORS is now only relevant for the *read* path (browsers fetching GLBs/textures for the viewer), and that's already proxied through `/api/assets/[...key]` (Issue 10) so the read path also doesn't depend on bucket CORS. Net result: the app works against a fresh S3 bucket with **zero CORS rules**, on any deploy target, with no console steps.
+- **No presigned-URL gotchas.** Issue 14's `requestChecksumCalculation` quirk, Issue 15's wildcard-origin matching, and any future SDK default behaviors that affect presigned URLs all go away — we don't presign anything anymore.
+- **No platform body-cap escape hatch needed.** Chunks always stay below the lowest-tier cap, so the upload works identically on Hobby, Pro, and Enterprise.
+- **Same upstream credentials.** Server → S3 still uses the same IAM access key + secret already configured in `.env`. No new permissions, no new infra.
+
+**Trade-offs**
+
+- **Latency.** A 100 MB file is now 25 sequential 4 MB POSTs through Vercel instead of one direct PUT to S3. Per-call HTTPS handshake + cold-start + S3 PUT adds maybe ~30–60s of total upload time vs. the direct-to-S3 path. Acceptable for the marketplace use case; the upload is one-shot per product. The progress bar from Issue 15 keeps the UX honest while it runs.
+- **S3 writes double.** Each chunk is one PutObject; the assembled GLB is one more; the deletes at the end are N more. 25 chunks → ~50 S3 ops per upload vs. 2 on the direct path. Cost is negligible (S3 PUT is ~$0.005 per 1000 requests), but worth knowing.
+- **Vercel function invocations.** 25 chunks → 25 function calls instead of 2 (init + complete). Each chunk-receiver call is short (< 5s) so they stay well inside the per-invocation duration limit, and on Hobby/Pro both this is well under the monthly invocation quota for normal vendor upload traffic.
+- **Memory peak on /complete.** While reassembling, the function holds the full 100 MB plus the compressed copy plus Draco working memory — peak around 250 MB. Fine for Vercel's 1 GB Hobby budget; would need rethinking if `MAX_GLB_BYTES` ever climbs much past 100 MB.
+
+**Faster path stays available (deferred)**
+
+The chunk-S3-objects approach is the simplest path that always works. If upload latency becomes a real complaint, the path forward is **S3 multipart upload through the Vercel function**: the function relays chunks straight into S3's multipart API instead of writing them as temp objects, eliminating the "reassemble in memory" step in /complete. The catch is S3 requires parts ≥ 5 MB except the last one, which doesn't fit Vercel's 4.5 MB cap directly — needs either a 2-chunk buffer (Redis or another temp S3 key) or the Pro-tier Fluid Compute 50 MB cap. Out of scope until upload UX latency is the bottleneck.
+
+**Verification**
+
+- DevTools → Network → no requests to `model-uploader-bucket.s3...` from the browser during upload. Every request is to `https://<your-domain>/api/vendor/products/upload/...`.
+- The progress bar from Issue 15 climbs from 0% to ~85% across the chunk loop, 85% → 95% across textures, then sits at 96% while `/complete` does the Draco pass before snapping to 100%.
+- On 100 MB inputs the full flow takes ~30–60s; on small GLBs (1–5 MB, one chunk) it's under 5s.
+- The bucket needs zero CORS configuration for this path to work — if you've never run `put-bucket-cors`, that's fine.
+
+**Takeaway**
+
+When a piece of *infrastructure config* keeps biting you across multiple debug rounds, the cheapest long-term fix is to restructure the system so that config stops being load-bearing. CORS for browser-direct cloud-storage uploads is exactly that kind of trap — every new environment (preview deploy, custom domain, staging bucket) means another rule to apply, another origin to permit, another cache to invalidate. Routing the upload through your own API trades a bit of latency for an architecture that just works, anywhere, with no console steps.

@@ -15,6 +15,8 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const MAX_CHUNKS = 1000;
+
 const slugify = (s: string) =>
   s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 80);
 
@@ -29,22 +31,23 @@ const variantSchema = z.object({
 
 const completeSchema = z.object({
   uploadId: z.string().uuid(),
+  totalChunks: z.number().int().positive().max(MAX_CHUNKS),
   title: z.string().min(2).max(120),
   description: z.string().min(10).max(5000),
   price: z.coerce.number().nonnegative().max(1_000_000),
   stock: z.coerce.number().int().min(0).max(100_000),
-  glbKey: z.string().min(1).max(300),
   variants: z.array(variantSchema).max(MAX_VARIANTS).optional().default([]),
 });
 
+function partKey(vendorId: string, uploadId: string, part: number) {
+  return `pending/${vendorId}/${uploadId}/chunk-${String(part).padStart(4, "0")}.bin`;
+}
+
 /**
- * Step 2 of the two-step vendor upload flow. By this point the browser has
- * PUT the raw GLB (and any variant textures) directly to S3 via presigned
- * URLs from `/init`. We fetch the GLB server-to-server, run Draco
- * compression, write the compressed copy to its permanent key, delete the
- * pending raw object, and create the Product + ProductVariant rows. Server
- * fetches don't go through Vercel's serverless request-body cap, so a 100 MB
- * raw GLB is fine.
+ * Final step of the chunked upload flow. Pulls every temp chunk back from S3
+ * (server → S3, no payload cap), concatenates them into the original GLB,
+ * runs Draco compression, writes the compressed copy to its permanent key,
+ * and creates the Product + ProductVariant rows.
  */
 export async function POST(req: Request) {
   try {
@@ -92,13 +95,10 @@ export async function POST(req: Request) {
     }
     const data = parsed.data;
 
-    // Every key must live under this vendor's namespace and carry the upload id
-    // — prevents a vendor from referencing another vendor's pending uploads.
-    const glbPrefix = `pending/${vendor.id}/${data.uploadId}`;
+    // Texture keys are written by the /texture route under this exact prefix.
+    // Refuse anything else so a malicious request can't reference another
+    // vendor's textures by key.
     const texturePrefix = `vendors/${vendor.id}/textures/${data.uploadId}-`;
-    if (!data.glbKey.startsWith(glbPrefix)) {
-      return NextResponse.json({ error: "glbKey does not match this upload." }, { status: 400 });
-    }
     for (const v of data.variants) {
       if (v.textureKey && !v.textureKey.startsWith(texturePrefix)) {
         return NextResponse.json(
@@ -108,27 +108,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // HEAD the GLB the browser claimed to upload. Validates size + presence
-    // before we burn CPU on Draco compression.
-    const glbHead = await storage.headObject(data.glbKey);
-    if (!glbHead) {
-      return NextResponse.json({ error: "GLB was not uploaded." }, { status: 400 });
-    }
-    if (glbHead.contentLength === 0) {
-      return NextResponse.json({ error: "Uploaded GLB is empty." }, { status: 400 });
-    }
-    if (glbHead.contentLength > MAX_GLB_BYTES) {
-      return NextResponse.json(
-        { error: `GLB exceeds the ${Math.round(MAX_GLB_BYTES / 1024 / 1024)} MB limit.` },
-        { status: 413 },
-      );
-    }
-
-    // Re-validate every texture the same way.
-    const textureHeads = new Map<string, { contentLength: number; contentType?: string }>();
+    // Re-validate every texture before we burn CPU on Draco.
     for (const v of data.variants) {
       if (!v.textureKey) continue;
-      if (textureHeads.has(v.textureKey)) continue;
       const head = await storage.headObject(v.textureKey);
       if (!head) {
         return NextResponse.json(
@@ -144,31 +126,70 @@ export async function POST(req: Request) {
       }
       if (head.contentLength > MAX_TEXTURE_BYTES) {
         return NextResponse.json(
-          { error: `Texture ${v.textureKey} exceeds 2 MB.` },
+          { error: `Texture ${v.textureKey} exceeds the size limit.` },
           { status: 413 },
         );
       }
       if (head.contentType && !ACCEPTED_TEXTURE_MIME.has(head.contentType)) {
         return NextResponse.json(
-          { error: `Texture ${v.textureKey} must be JPEG, PNG, or WebP.` },
+          { error: `Texture ${v.textureKey} has an unsupported content type.` },
           { status: 400 },
         );
       }
-      textureHeads.set(v.textureKey, head);
     }
 
-    let bytes: Uint8Array;
+    // Pull every chunk back in parallel. Each GET is server-to-server with no
+    // payload cap, so the only ceiling is total memory while the buffers are
+    // held — bounded by MAX_GLB_BYTES (100 MB).
+    let chunks: Uint8Array[];
     try {
-      bytes = await storage.getObjectBytes(data.glbKey);
+      chunks = await Promise.all(
+        Array.from({ length: data.totalChunks }, (_, i) =>
+          storage.getObjectBytes(partKey(vendor.id, data.uploadId, i)),
+        ),
+      );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to read GLB from storage.";
-      return NextResponse.json({ error: msg }, { status: 500 });
+      const msg =
+        err instanceof Error ? err.message : "Failed to read chunks from storage.";
+      return NextResponse.json(
+        { error: `Could not reassemble upload: ${msg}` },
+        { status: 500 },
+      );
     }
 
-    const processed = await processGlb(bytes);
+    const totalSize = chunks.reduce((acc, c) => acc + c.byteLength, 0);
+    if (totalSize === 0) {
+      return NextResponse.json({ error: "Uploaded GLB is empty." }, { status: 400 });
+    }
+    if (totalSize > MAX_GLB_BYTES) {
+      return NextResponse.json(
+        {
+          error: `Assembled GLB (${(totalSize / 1024 / 1024).toFixed(1)} MB) exceeds the ${Math.round(MAX_GLB_BYTES / 1024 / 1024)} MB limit.`,
+        },
+        { status: 413 },
+      );
+    }
+
+    // Concatenate into a single buffer for processGlb.
+    const assembled = new Uint8Array(totalSize);
+    let offset = 0;
+    for (const c of chunks) {
+      assembled.set(c, offset);
+      offset += c.byteLength;
+    }
+    // Drop references early so the GC can reclaim the per-chunk buffers while
+    // Draco is running.
+    chunks = [];
+
+    const processed = await processGlb(assembled);
     if (!processed.ok) {
-      // Clean up the raw upload so we don't accumulate orphans.
-      await storage.remove(data.glbKey);
+      // Best-effort: clear the temp chunks so we don't accumulate orphans on
+      // rejected uploads.
+      await Promise.all(
+        Array.from({ length: data.totalChunks }, (_, i) =>
+          storage.remove(partKey(vendor.id, data.uploadId, i)),
+        ),
+      );
       return NextResponse.json({ error: processed.reason }, { status: 400 });
     }
 
@@ -193,8 +214,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
-    // Drop the raw pending object once the compressed copy is durable.
-    await storage.remove(data.glbKey);
+    // Drop the temp chunks once the compressed copy is durable.
+    await Promise.all(
+      Array.from({ length: data.totalChunks }, (_, i) =>
+        storage.remove(partKey(vendor.id, data.uploadId, i)),
+      ),
+    );
 
     const product = await prisma.product.create({
       data: {
