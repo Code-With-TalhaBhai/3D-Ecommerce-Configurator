@@ -34,6 +34,56 @@ type VariantDraft = {
   texture: File | null;
 };
 
+type ProgressStage =
+  | "presigning"
+  | "uploading_glb"
+  | "uploading_textures"
+  | "finalizing";
+
+type Progress = { stage: ProgressStage; pct: number };
+
+const STAGE_LABEL: Record<ProgressStage, string> = {
+  presigning: "Preparing upload…",
+  uploading_glb: "Uploading model",
+  uploading_textures: "Uploading variant textures",
+  finalizing: "Compressing & saving",
+};
+
+/**
+ * PUT a Blob to a URL with upload-progress reporting. `fetch` doesn't expose
+ * upload progress, so we drop down to XHR for this leg of the flow.
+ */
+function putWithProgress(
+  url: string,
+  body: Blob,
+  contentType: string,
+  onProgress: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url, true);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && e.total > 0) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Storage rejected upload (HTTP ${xhr.status}).`));
+      }
+    });
+    xhr.addEventListener("error", () => {
+      // CORS failures and network errors both surface here with status 0.
+      reject(new Error("Upload to storage failed. (Network or CORS error.)"));
+    });
+    xhr.addEventListener("abort", () => reject(new Error("Upload aborted.")));
+    xhr.send(body);
+  });
+}
+
 function newVariant(): VariantDraft {
   return {
     uid: crypto.randomUUID(),
@@ -48,6 +98,7 @@ export function NewProductForm() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [variants, setVariants] = useState<VariantDraft[]>([]);
@@ -129,6 +180,7 @@ export function NewProductForm() {
     setSubmitting(true);
     setError(null);
     setFieldErrors({});
+    setProgress({ stage: "presigning", pct: 0 });
 
     const formEl = e.currentTarget;
     const fd = new FormData(formEl);
@@ -168,37 +220,52 @@ export function NewProductForm() {
         return;
       }
 
-      // Step 2: PUT the GLB directly to S3. The Content-Type must match what
-      // we signed; the browser sets Content-Length automatically.
-      const glbPut = await fetch(init.glb.uploadUrl, {
-        method: "PUT",
-        headers: { "content-type": "model/gltf-binary" },
-        body: file,
-      });
-      if (!glbPut.ok) {
-        setError(`GLB upload to storage failed (${glbPut.status}).`);
-        return;
-      }
+      // Step 2: PUT the GLB directly to S3 with progress reporting. The GLB
+      // is the long part — split the overall progress so it owns 0–85%.
+      setProgress({ stage: "uploading_glb", pct: 0 });
+      await putWithProgress(
+        init.glb.uploadUrl,
+        file,
+        "model/gltf-binary",
+        (xhrPct) => {
+          setProgress({
+            stage: "uploading_glb",
+            pct: Math.min(85, Math.round(xhrPct * 0.85)),
+          });
+        },
+      );
 
-      // Step 3: PUT each texture directly to S3.
+      // Step 3: PUT each texture directly to S3. Textures are small; map the
+      // collective work to the 85–95% band.
       const textureKeysByIndex = new Map<number, string>();
+      const totalTextures = init.textures?.length ?? 0;
+      let textureIdx = 0;
       for (const t of init.textures ?? []) {
         const tex = variantsWithTexture.find((x) => x.index === t.index);
         if (!tex) continue;
-        const put = await fetch(t.uploadUrl, {
-          method: "PUT",
-          headers: { "content-type": tex.texture.type },
-          body: tex.texture,
-        });
-        if (!put.ok) {
-          setError(`Texture upload to storage failed (${put.status}).`);
-          return;
-        }
+        const slotStart = 85 + (textureIdx / Math.max(1, totalTextures)) * 10;
+        const slotSize = 10 / Math.max(1, totalTextures);
+        setProgress({ stage: "uploading_textures", pct: Math.round(slotStart) });
+        await putWithProgress(
+          t.uploadUrl,
+          tex.texture,
+          tex.texture.type,
+          (xhrPct) => {
+            setProgress({
+              stage: "uploading_textures",
+              pct: Math.min(95, Math.round(slotStart + slotSize * (xhrPct / 100))),
+            });
+          },
+        );
         textureKeysByIndex.set(t.index, t.key);
+        textureIdx++;
       }
 
       // Step 4: finalize. Server fetches the GLB from S3 server-to-server,
-      // runs Draco compression, and creates the Product row.
+      // runs Draco compression, and creates the Product row. We don't know
+      // exactly how long compression takes, so pin the bar at 96% during the
+      // call.
+      setProgress({ stage: "finalizing", pct: 96 });
       const completeRes = await fetch("/api/vendor/products/upload/complete", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -233,12 +300,16 @@ export function NewProductForm() {
         if (data.fieldErrors) setFieldErrors(data.fieldErrors);
         return;
       }
+      setProgress({ stage: "finalizing", pct: 100 });
       router.push("/vendor/products");
       router.refresh();
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message ? err.message : "Network error. Please try again.";
+      setError(msg);
     } finally {
       setSubmitting(false);
+      setProgress(null);
     }
   }
 
@@ -377,6 +448,28 @@ export function NewProductForm() {
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
             {error}
           </p>
+        )}
+
+        {progress && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400">
+              <span>{STAGE_LABEL[progress.stage]}</span>
+              <span className="font-mono tabular-nums">{progress.pct}%</span>
+            </div>
+            <div
+              className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+              role="progressbar"
+              aria-valuenow={progress.pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={STAGE_LABEL[progress.stage]}
+            >
+              <div
+                className="h-full bg-zinc-900 transition-[width] duration-150 ease-out dark:bg-zinc-100"
+                style={{ width: `${progress.pct}%` }}
+              />
+            </div>
+          </div>
         )}
 
         <Button type="submit" disabled={!file || submitting}>
