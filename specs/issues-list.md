@@ -792,3 +792,123 @@ Two-step gotcha pattern when wiring presigned direct-to-S3 from a browser:
 
 1. **CORS is half code, half ops.** The JSON in `infra/` is just a record — it does nothing until `put-bucket-cors` actually pushes it, and the wildcard scope must match the actual origin. If your preflight returns 403, the CORS rule isn't matching — not a code problem.
 2. **Recent AWS SDK defaults break browser presigned PUTs out of the box.** Set `requestChecksumCalculation: "WHEN_REQUIRED"` on any S3 client used for presigning until/unless you build a checksum-aware uploader client-side (compute the CRC32 of the file in the browser before requesting the presign — overkill for this app).
+
+---
+
+## Issue 15 — Presigned PUT CORS still fails from `https://3-d-ecommerce-configurator.vercel.app` + upload has no progress bar
+
+**Sprint:** 3–4 — *Upload pipeline* (immediate follow-up to Issue 14; deployment-blocking).
+
+**Symptom**
+
+After Issue 14's SDK checksum fix landed, the URL no longer carries `x-amz-checksum-crc32` — confirming the SDK change took effect. But the production deploy at `https://3-d-ecommerce-configurator.vercel.app` still fails on the preflight:
+
+```
+Access to fetch at 'https://model-uploader-bucket.s3.eu-north-1.amazonaws.com/
+pending/<vendorId>/<uploadId>.glb?X-Amz-Algorithm=AWS4-HMAC-SHA256&…' from
+origin 'https://3-d-ecommerce-configurator.vercel.app' has been blocked by
+CORS policy: Response to preflight request doesn't pass access control check:
+No 'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+Separately: throughout the upload, the user-facing form gives no signal beyond a "Uploading & compressing…" label on the submit button. On a 50 MB GLB on a slow uplink, that's effectively a frozen UI for tens of seconds.
+
+**Root cause (CORS half)**
+
+Two compounding failure modes for the CORS preflight:
+
+1. **The bucket still has no matching CORS rule.** S3 returns 403 with no `Access-Control-Allow-*` headers when no rule in the bucket's CORS config matches the incoming `Origin` + `Access-Control-Request-Method` combo. Common reasons in practice:
+   - The repo's [infra/s3-cors.json](../infra/s3-cors.json) update from Issue 13 was edited but never pushed to the bucket via `put-bucket-cors`.
+   - The `put-bucket-cors` succeeded against the wrong account/profile/region. (Easy to miss — `aws s3api` is silent on success.)
+   - The bucket has only the legacy `GET, HEAD` rule from Issue 8, so any `PUT` preflight gets no match.
+2. **Wildcard matching ambiguity.** Issue 14 shipped `AllowedOrigins: ["https://*.vercel.app"]`. S3 *does* support a single `*` in an origin entry, but matches are sometimes flaky for deployment URLs that contain hyphens or compound subdomains (`3-d-ecommerce-configurator.vercel.app`). Even when wildcard matching works in theory, debugging "did the wildcard match?" against a black-box CORS evaluator is much slower than just removing the ambiguity.
+
+**Root cause (progress bar half)**
+
+The form was using `fetch()` for both `init`/`complete` (small JSON) and the GLB `PUT` (potentially 100 MB). The Fetch API **does not expose upload progress events** — there's no equivalent of `xhr.upload.onprogress`. The submit button label was the only "something is happening" signal, which is far too quiet for a multi-stage upload.
+
+**Fix #1 — Remove the CORS wildcard-matching question entirely**
+
+[infra/s3-cors.json](../infra/s3-cors.json) now ships:
+
+```json
+{
+  "CORSRules": [
+    {
+      "AllowedOrigins": ["*"],
+      "AllowedMethods": ["GET", "HEAD", "PUT"],
+      "AllowedHeaders": ["*"],
+      "ExposeHeaders": ["ETag", "Content-Length", "Content-Type"],
+      "MaxAgeSeconds": 3600
+    }
+  ]
+}
+```
+
+`AllowedOrigins: ["*"]` is safe here even though it sounds permissive:
+
+- The actual write authorization is the **presigned URL's HMAC signature**, not the CORS rule. CORS only controls which origins are allowed to *read the response* of a cross-origin request; it doesn't grant write access. A malicious origin without the signed URL cannot upload anything.
+- The signed URL itself is scoped to a single key path under `pending/{vendorId}/{uploadId}` and expires in 15 minutes. Even if a URL were intercepted, the only thing the attacker could do is overwrite that one upload slot in the next 15 minutes.
+- GET reads on the bucket return content that's already meant to be publicly viewable (product GLBs in the marketplace). There's no confidential data behind CORS.
+
+If you want a tighter posture later, lock `AllowedOrigins` down to your specific production domain(s) — but **only after** you've confirmed the upload flow works end-to-end with `"*"`, so you don't conflate "is CORS wrong?" with "is the origin string wrong?".
+
+**Apply the config to the bucket (this is the step that's been getting skipped)**
+
+Two ways — pick whichever you can run right now.
+
+*Option A — AWS Console (no CLI needed):*
+
+1. AWS Console → S3 → click `model-uploader-bucket`.
+2. **Permissions** tab → scroll to **Cross-origin resource sharing (CORS)**.
+3. Click **Edit**.
+4. Paste the entire contents of [infra/s3-cors.json](../infra/s3-cors.json).
+5. **Save changes**.
+
+*Option B — AWS CLI:*
+
+```bash
+aws s3api put-bucket-cors \
+  --bucket model-uploader-bucket \
+  --region eu-north-1 \
+  --cors-configuration file://infra/s3-cors.json
+```
+
+**Verify** (do not skip this — it's the only way to be sure the change actually landed in the right place):
+
+```bash
+aws s3api get-bucket-cors --bucket model-uploader-bucket --region eu-north-1
+```
+
+The output must include `"AllowedMethods": ["GET", "HEAD", "PUT"]` and `"AllowedOrigins": ["*"]`. If the command returns `NoSuchCORSConfiguration` or a stale ruleset, the apply step targeted the wrong bucket/account/region — re-run `put-bucket-cors` against the right one.
+
+Browser-side: CORS preflight responses are cached for up to `MaxAgeSeconds` (1 hour with the shipped config). **Hard-refresh** the upload page (Ctrl-Shift-R / Cmd-Shift-R) so the browser drops the stale negative preflight result. In Chrome DevTools you can also tick **Network → Disable cache** while testing.
+
+**Fix #2 — XHR-based upload with multi-stage progress bar**
+
+[app/(vendor)/vendor/products/new/new-product-form.tsx](../app/(vendor)/vendor/products/new/new-product-form.tsx) now wraps the GLB and texture PUTs in a small `putWithProgress(url, body, contentType, onProgress)` helper backed by `XMLHttpRequest`. XHR exposes `xhr.upload.onprogress` events with `loaded` / `total` byte counts, which the form maps onto a single overall progress bar.
+
+The bar advances through four labelled stages so the vendor can see exactly where they are in the flow:
+
+| Stage | Label | Progress band |
+|---|---|---|
+| `presigning` | "Preparing upload…" | 0% |
+| `uploading_glb` | "Uploading model" | 0% → 85% (driven by XHR `progress` events) |
+| `uploading_textures` | "Uploading variant textures" | 85% → 95% (split across all textures) |
+| `finalizing` | "Compressing & saving" | 96% → 100% (server-side Draco; indeterminate, so pinned at 96 until response) |
+
+The bar uses `role="progressbar"` + `aria-valuenow` / `aria-valuemin` / `aria-valuemax` so screen readers announce progress. It clears on success (just before the route push) and on failure (so the error banner is what the user reads).
+
+The XHR error handler now distinguishes between HTTP failures (which carry a status code in the message) and `error` events with `status: 0` (which is what browsers surface for both CORS-blocked and network-blip failures — the platform doesn't let JS distinguish them for security reasons). Either way the catch block surfaces the underlying `Error.message` to the form's red banner, so vendors see "Upload to storage failed. (Network or CORS error.)" instead of the prior generic "Network error".
+
+**Verification**
+
+After Fix #1 is applied to the bucket and Fix #2 is deployed:
+
+- DevTools → Network → filter on the bucket host → the OPTIONS preflight returns **204** with `Access-Control-Allow-Origin: https://3-d-ecommerce-configurator.vercel.app` (S3 echoes the request origin when the rule allows `*`) and `Access-Control-Allow-Methods` containing `PUT`.
+- The subsequent PUT returns 200 OK.
+- The form shows the progress bar climbing from "Uploading model 0%" through to "Compressing & saving 100%" before routing to `/vendor/products`.
+
+**Takeaway**
+
+When a CORS preflight 403 persists across multiple fixes, the answer is almost always *the rule simply isn't applied to the bucket you think it is*. Verify with `get-bucket-cors` against the exact bucket and region before iterating on the JSON. And: any user-facing upload over ~5 MB should use XHR (or `fetch` + a manual `ReadableStream` reader, but XHR is simpler) so the UI has something honest to say while bytes travel.
