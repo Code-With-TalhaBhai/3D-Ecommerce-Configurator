@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ProductThumb } from "@/components/viewer/product-thumb";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -25,9 +26,19 @@ function itemKey(i: CartItem) {
 }
 
 export function CartView() {
-  const items = useAppSelector((s) => s.cart.items);
+  const storedItems = useAppSelector((s) => s.cart.items);
   const dispatch = useAppDispatch();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // The cart is hydrated from localStorage in app/providers.tsx's useEffect;
+  // on the very first client render the store may still be empty (matching
+  // the server's SSR output) or may have already been hydrated. Either way
+  // we lock the first paint to the empty state so React doesn't trip on a
+  // hydration mismatch (issues-list #18). After mount we switch to the
+  // real items.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const items = mounted ? storedItems : [];
 
   const subtotal = useMemo(
     () => items.reduce((sum, i) => sum + i.price * i.quantity, 0),
@@ -47,21 +58,12 @@ export function CartView() {
       <ul className="flex flex-col divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
         {items.map((item) => (
           <li key={itemKey(item)} className="flex gap-4 p-4 sm:p-5">
-            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-950">
-              {item.thumbnailUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.thumbnailUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-wider text-zinc-400">
-                  3D
-                </div>
-              )}
-            </div>
+            <ProductThumb
+              src={item.thumbnailUrl}
+              alt={item.title}
+              className="h-20 w-20 shrink-0 rounded-md"
+            />
+
 
             <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex flex-col gap-1">

@@ -75,7 +75,7 @@ Route groups (`(name)`) don't appear in URLs but scope layouts. Public-facing un
 - `products/search-bar.tsx` — Client controlled form that pushes filter querystring.
 - `products/[slug]/page.tsx` — RSC product detail. Loads APPROVED product (else `notFound()`), generates OG metadata, mounts `<ProductConfigurator>` + optional `<ProductChatPanel>` (when viewer is signed in and isn't the vendor).
 - `products/[slug]/loading.tsx` — Skeleton mirroring `ProductConfigurator`'s 2-column split — viewer pane, vendor/title/price column, variant chips, controls block, CTA.
-- `products/[slug]/product-configurator.tsx` — Client island. Sticky 3D viewer (left) + scrolling aside (right) with title/price/stock pill, variant chips, controls panel, add-to-cart, description, stats ribbon.
+- `products/[slug]/product-configurator.tsx` — Client island. Sticky 3D viewer (left) + scrolling aside (right) with title/price/stock pill, variant chips, controls panel, add-to-cart, description, stats ribbon. An in-viewer `<ViewerLoader>` (brand glyph + rotating ring + animated dots, same language as the global `PageLoader`) fills the canvas frame until `ConfigurableViewer` fires `onFirstFrame`, then fades out over 300 ms. The same loader doubles as the `dynamic({ loading })` fallback so the JS-chunk and GLB-fetch phases share one continuous visual.
 
 ### Cart, checkout, account
 - `cart/layout.tsx` — `<PublicHeader>` wrapper.
@@ -118,7 +118,7 @@ All run on the Node runtime unless noted.
 
 - `auth/[...nextauth]/route.ts` — Re-exports NextAuth handlers (`GET`/`POST`).
 - `assets/[...key]/route.ts` — Same-origin asset proxy. Streams S3/CloudFront → browser so the browser never makes a cross-origin request (sidesteps CORS while CloudFront isn't policy-configured). `maxDuration: 60`.
-- `vendor/products/upload/{init,chunk,texture,complete}/route.ts` — Chunked upload pipeline (see issues-list #16 for the rationale: chunked through our API, no browser→S3 CORS). `init` issues an upload id; `chunk` streams each 4 MB GLB slice into a temp S3 key; `texture` accepts each variant's image; `complete` re-fetches every chunk, runs `processGlb` (Draco compression), uploads the final GLB, and creates the `Product` + `ProductVariant` rows. Product `status` is set at create time based on `vendor.approvedAt`: `APPROVED` if the vendor has been approved, else `PENDING`. `maxDuration: 60`.
+- `vendor/products/upload/{init,chunk,texture,thumbnail,complete}/route.ts` — Chunked upload pipeline (see issues-list #16 for the rationale: chunked through our API, no browser→S3 CORS). `init` issues an upload id; `chunk` streams each 4 MB GLB slice into a temp S3 key; `texture` accepts each variant's image; `thumbnail` accepts the client-captured 2D PNG of the live preview (locked to `image/png`, ≤ `MAX_THUMBNAIL_BYTES`); `complete` re-fetches every chunk, runs `processGlb` (Draco compression), uploads the final GLB, and creates the `Product` + `ProductVariant` rows. Product `status` is set at create time based on `vendor.approvedAt`: `APPROVED` if the vendor has been approved, else `PENDING`. `Product.thumbnailUrl` is populated from the validated `thumbnailKey` when present. `maxDuration: 60`.
 - `checkout/session/route.ts` — `POST` validates cart, creates `Order` in PENDING with stripeSessionId, opens Stripe Checkout Session (with optional one-shot coupon when promo applies).
 - `stripe/webhook/route.ts` — `POST` verifies Stripe signature on raw body. On `checkout.session.completed` / `async_payment_succeeded` → flips Order to PAID and decrements stock atomically; idempotent.
 - `products/[id]/messages/route.ts` — `GET` returns the thread; `POST` persists + broadcasts. Vendor-initiated DMs only allowed when the customer has previously messaged or ordered.
@@ -144,9 +144,8 @@ components/
 │   ├── cart-badge.tsx      ← Client; reads cart count from Redux; 99+ cap with ring halo
 │   └── route-progress.tsx  ← Client; top 2px progress bar. Anchor-click capture + patched history.pushState/replaceState + popstate; fades on pathname/searchParams change
 ├── viewer/
-│   ├── glb-viewer.tsx          ← Plain R3F canvas + Bounds + OrbitControls. Used by upload preview & admin review
-│   ├── glb-thumb.tsx           ← Low-power, demand-frameloop thumbnail renderer for product cards
-│   ├── glb-thumb-lazy.tsx      ← dynamic({ ssr:false }) wrapper around GlbThumb with Box-icon placeholder
+│   ├── glb-viewer.tsx          ← R3F canvas + Bounds + OrbitControls. Used by the upload preview (with optional `onScreenshotterReady` for thumbnail capture) and the admin review queue
+│   ├── product-thumb.tsx       ← Plain HTML <img> + icon placeholder. Used by every listing surface (no WebGL on listings)
 │   ├── configurable-viewer.tsx ← Customer viewer: upgrades materials to MeshPhysicalMaterial, applies color / finish / lighting / texture / backdrop / autorotate from the viewer slice, exposes a screenshot closure
 │   └── controls-panel.tsx      ← Sectioned panel (Color / Finish / Lighting / Backdrop / Spin / Save snapshot), dispatches patchViewer
 └── chat/
@@ -294,16 +293,30 @@ Stripe → POST /api/stripe/webhook
 ### 2. Vendor uploads a 3D product
 
 ```
-/vendor/products/new (client form)  →  POST /api/vendor/products/upload (multipart)
-  ├── auth() + role check + vendor-exists check
-  ├── Zod parse fields (+ variants JSON)
-  ├── processGlb(buffer):
+/vendor/products/new (client form, renders <GlbViewer> live preview)
+  │
+  ▼
+POST /api/vendor/products/upload/init        → { uploadId, chunkSize, totalChunks }
+  │
+  ├── POST /chunk?uploadId&part=0..N         (each ≤ 4 MB; stored as temp S3 keys)
+  ├── POST /texture?uploadId&index=K         (per-variant image; same-origin, no chunking)
+  ├── POST /thumbnail?uploadId               (client captures gl.domElement.toDataURL("image/png")
+  │                                            from the live preview; ≤ 1 MB; stored at
+  │                                            vendors/{vendorId}/thumbnails/{uploadId}.png)
+  │
+  ▼
+POST /api/vendor/products/upload/complete
+  ├── auth + vendor-exists + autoApprove = vendor.approvedAt != null
+  ├── re-fetch every chunk from S3, concatenate, validate texture/thumbnail keys
+  ├── processGlb:
   │     – magic-byte check
   │     – triangle count vs MAX_TRIANGLES
   │     – Draco encode (NodeIO + draco3dgltf, both cached singletons)
   ├── storage.upload({ key: vendors/{vendorId}/products/{slug}-{ts}.glb })
-  ├── for each variant texture → MIME/size/non-empty check → storage.upload
-  └── prisma.product.create({ status: PENDING, ...variants })
+  └── prisma.product.create({
+        status: autoApprove ? APPROVED : PENDING,
+        glbUrl, thumbnailUrl (from thumbnailKey), ...variants
+      })
 ```
 
 ### 3. Admin reviews, revokes, or restores
@@ -371,6 +384,7 @@ Segment commits  →  usePathname / useSearchParams updates
 - **Cart line keys**: `(productId, variantId)` together. The cart never carries finish/lighting/colour overrides — only the vendor variant survives into the order.
 - **Admin safety**: any admin write action calls `requireAdmin()` first; mutations against users also check `adminCount()` to refuse self-lockout or last-admin demotion.
 - **Product approval is vendor-gated**: at upload time, `Product.status` is `APPROVED` iff `Vendor.approvedAt !== null`, else `PENDING`. Approving a vendor batch-flips their queued PENDING products to APPROVED in the same transaction. Admin can revoke (APPROVED → REJECTED with reason) or restore (REJECTED → APPROVED) at any time from `/admin/products`. Revoking a vendor does not pull back their already-live products.
+- **Listings never load GLBs**: any surface that shows a *thumbnail* uses `<ProductThumb src={toCdnUrl(product.thumbnailUrl)} … />` (plain `<img>` + icon fallback). WebGL is reserved for **intent-driven** surfaces only — the product detail configurator, the vendor upload preview, and the click-to-load admin review viewer. Adding a new listing-style surface? Use `ProductThumb` — never `GlbViewer` / `ConfigurableViewer`.
 - **Stripe orders**: `Order` is created **before** the Stripe session (PENDING, `stripeSessionId` patched in immediately after) so the webhook always has a row to flip.
 - **Promo codes**: always uppercased on lookup and on insert (`/admin/promos` already uppercases on create).
 - **Cart persistence key**: `3dmkt:cart:v1` (versioned, so a future schema bump can wipe and rehydrate cleanly).

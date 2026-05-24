@@ -1068,3 +1068,110 @@ Three related cleanups went in at the same time:
 **Takeaway**
 
 When you monkey-patch a host-environment API that *might* be called from a React internal effect, never assume your hook callback can run synchronous React work. `queueMicrotask` is the cheapest, lowest-latency way to escape whatever effect phase happens to be on the stack. The same trap exists for any patched `MutationObserver`, `ResizeObserver`, or `IntersectionObserver` callback that ends up calling `setState` — if the observer's underlying notification ever fires during a React commit (and they sometimes do), you'll get the same insertion-effect warning. The fix is identical.
+
+---
+
+## Issue 18 — Hydration mismatch on `<CartBadge>` after localStorage rehydration
+
+**Sprint:** Cross-sprint — *Sprint 7-8 Cart Persistence* (Feature 25) interacting with the *Loading & Navigation Feedback Pass* (`<Suspense>` boundary around `<RouteProgress>`).
+
+**Symptom**
+
+On a cold load of any page that renders `<PublicHeader>` (most of the site — `/`, `/products`, `/products/[slug]`, `/cart`, `/checkout`, `/account/orders`), with at least one item already in the persisted cart, the browser console threw:
+
+```
+Hydration failed because the server rendered HTML didn't match the client.
+...
+<CartBadge>
+  <LinkComponent href="/cart" className="relative i..." aria-label="Cart, 1 item">
+    <a className="..."
++   aria-label="Cart, 1 item"
+-   aria-label="Cart"
+```
+
+Server-rendered HTML had `aria-label="Cart"` (and no count pill); the client's first paint had `aria-label="Cart, 1 item"` (and a `1` pill in the corner). React regenerated the entire subtree on the client to recover, so the page worked — but every cold load logged the warning.
+
+**Root cause**
+
+`<CartBadge>` reads the cart item count from Redux via `useAppSelector`. The cart is persisted to `localStorage` under `3dmkt:cart:v1` (Feature 25), and re-hydrated by `app/providers.tsx` inside a top-level `useEffect`:
+
+```ts
+useEffect(() => {
+  const store = storeRef.current!;
+  hydrateCartFromStorage(store);
+  return subscribeCartToStorage(store);
+}, []);
+```
+
+Server-side: there is no SSR for Redux (the store is created per-request on the client only) and `hydrateCartFromStorage` short-circuits on `typeof window === "undefined"`. So the server always renders the badge with `count === 0`.
+
+Client-side, *normally* a `useEffect` runs strictly after the initial commit, so the very first hydration render would also see `count === 0` (matching the server). The store mutation from `hydrateCartFromStorage` would then trigger a *post*-hydration re-render — totally legal, no mismatch.
+
+What broke that timing was the **`<Suspense fallback={null}>` boundary around `<RouteProgress>`** added during the Loading & Navigation Feedback Pass:
+
+```tsx
+// app/providers.tsx
+<SessionProvider>
+  <ReduxProvider store={storeRef.current}>
+    <Suspense fallback={null}>
+      <RouteProgress />
+    </Suspense>
+    {children}
+  </ReduxProvider>
+</SessionProvider>
+```
+
+In React 19, a Suspense boundary in the tree can fragment hydration into multiple commits. With this layout, the Providers' `useEffect` could fire **between** the commit that hydrates `<RouteProgress>` (or the fallback) and the commit that hydrates the rest of the tree (including `<PublicHeader>` → `<CartBadge>`). Sequence:
+
+```
+1. Server SSRs page with count=0 in <CartBadge>.
+2. Client begins hydration.
+3. <Suspense> fallback commits.
+4. Providers' useEffect runs → hydrateCartFromStorage → store now has 1 item.
+5. <CartBadge> hydrates, useSyncExternalStore reads the *current* store → count=1.
+6. React compares against the SSR'd DOM → MISMATCH on aria-label and on the
+   absence of the count pill.
+```
+
+`useSyncExternalStore` (which react-redux v9's `useSelector` uses internally) reads the snapshot synchronously on every render. Since the store had already been mutated by the time `<CartBadge>` hydrated, its snapshot returned the post-rehydration state — which no longer matched the SSR output.
+
+The cart store has no SSR path we could populate, and we can't move `hydrateCartFromStorage` earlier without re-creating the same race in `<Providers>` itself. The clean fix is to make any **cart-reading client component** match the server on first paint, then snap to the real value after mount.
+
+**Fix**
+
+Applied the canonical `mounted` flag pattern to every client component that reads from `s.cart`:
+
+```ts
+const [mounted, setMounted] = useState(false);
+useEffect(() => setMounted(true), []);
+
+const storedItems = useAppSelector((s) => s.cart.items);
+const items = mounted ? storedItems : []; // server sees [], client matches on first paint
+```
+
+Touched:
+
+1. **[components/layout/cart-badge.tsx](../components/layout/cart-badge.tsx)** — the file from the warning. `count` is now `mounted ? storedCount : 0`, so the very first client render writes `aria-label="Cart"` and omits the pill (matching the server). After the post-mount `useEffect` flips `mounted`, the badge snaps to the real count.
+2. **[app/cart/cart-view.tsx](../app/cart/cart-view.tsx)** — defensive. Without the guard, a cold load of `/cart` with a persisted cart would *also* mismatch (server renders the empty-cart state with the shopping-bag CTA; client renders the full item list).
+3. **[app/checkout/checkout-client.tsx](../app/checkout/checkout-client.tsx)** — same defensive guard. On a cold load of `/checkout` the server would render "There's nothing in your cart yet" while the client would render the line items.
+
+The guard adds a *single* extra render (the post-mount flip) and zero perceptible flash, because the localStorage rehydration and the `setMounted(true)` both fire in the same `useEffect` tick.
+
+**Why not just remove the `<Suspense>` boundary?**
+
+`<RouteProgress>` calls `useSearchParams`, which in App Router opts the *entire* subtree out of static rendering unless wrapped in `<Suspense>`. Removing the boundary would make every page in the app render dynamically. The boundary stays; the cart consumers gain the mount guard instead.
+
+**Why not move `hydrateCartFromStorage` out of `useEffect`?**
+
+Two options would avoid the race in theory: (a) initialise the Redux store with localStorage data at construction time (in `makeStore()`), or (b) run the rehydration inside a `useLayoutEffect` so it fires before commit. Both have problems: (a) only works if `makeStore()` runs on the client, but `<Providers>` is a `"use client"` component that *also* runs on the server during SSR — and `localStorage` is undefined there; we'd need a `typeof window` branch in the store initialiser, which is exactly the pattern that creates other hydration mismatches. (b) `useLayoutEffect` would still race with React's hydration phase under Suspense. The mount-guard is the cleanest, narrowest fix.
+
+**Verification**
+
+- Add an item to the cart (any product), then **hard-refresh** any page that mounts `<PublicHeader>` (`/products`, `/`, `/products/[slug]`, etc.): no hydration warning in the console; the badge briefly shows count=0 then snaps to the real count in the same frame.
+- Cold-load `/cart` with items in localStorage: no mismatch warning; the empty-state placeholder flashes once if at all, then the item list renders.
+- Cold-load `/checkout` similarly.
+- `npx tsc --noEmit` — green.
+
+**Takeaway**
+
+Any client component that reads from a store that's hydrated from `localStorage` in an effect must defer its first render to match the server. The trap gets worse the moment a `<Suspense>` boundary appears anywhere above the cart consumer, because Suspense fragments hydration into multiple commits and gives the rehydrating effect a chance to land between them. Rule of thumb: if a component's output depends on data that is *only* available on the client, gate it on a `mounted` flag, regardless of where the data comes from (localStorage, sessionStorage, `window.matchMedia`, `navigator.connection`, `Intl.DateTimeFormat` with a locale-sensitive output, etc.). The single extra render is cheaper than a hydration regeneration of the entire subtree, and the code is easier to reason about than trying to keep the server and client snapshots in lockstep.

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { Loader2, TicketPercent } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ProductThumb } from "@/components/viewer/product-thumb";
 import { useAppSelector } from "@/store/hooks";
 
 function formatCurrency(n: number) {
@@ -13,10 +14,17 @@ function formatCurrency(n: number) {
 }
 
 export function CheckoutClient() {
-  const items = useAppSelector((s) => s.cart.items);
+  const storedItems = useAppSelector((s) => s.cart.items);
   const [promoCode, setPromoCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Same hydration-mismatch guard as CartBadge / CartView (issues-list #18):
+  // first paint mirrors the server (empty), then we swap to the localStorage-
+  // hydrated cart after mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const items = mounted ? storedItems : [];
 
   const subtotal = useMemo(
     () => items.reduce((sum, i) => sum + i.price * i.quantity, 0),
@@ -87,21 +95,12 @@ export function CheckoutClient() {
               className="flex items-center justify-between gap-4 px-5 py-4"
             >
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-950">
-                  {item.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item.thumbnailUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-wider text-zinc-400">
-                      3D
-                    </div>
-                  )}
-                </div>
+                <ProductThumb
+                  src={item.thumbnailUrl}
+                  alt={item.title}
+                  className="h-12 w-12 shrink-0 rounded-md"
+                />
+
                 <div>
                   <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                     {item.title}
