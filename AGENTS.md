@@ -37,7 +37,8 @@ The platform replaces static 2D product images with real-time 3D interaction (pa
 - Upload validation: format check, corrupt file detection, MIME type verification
 - Preview render shown to vendor before publishing
 - Models stored on AWS S3, served via CloudFront CDN
-- Admin review and approval / rejection queue for uploaded models
+- **Vendor-gated approval**: products uploaded by an approved vendor are auto-approved and go live immediately. Products uploaded by a vendor whose store has not yet been approved sit in the admin review queue.
+- Admin can **revoke an approved listing** at any time from `/admin/products?status=approved` (re-uses the rejection-reason flow so vendors get an explanation).
 
 ### 3.3 3D Viewer & Customization
 
@@ -78,7 +79,8 @@ The platform replaces static 2D product images with real-time 3D interaction (pa
 ### 3.7 Admin Dashboard
 
 - User management (view, suspend, delete vendors and customers)
-- 3D model review queue (approve / reject uploaded models)
+- **Vendor approval** is the trust gate — approving a vendor flips that vendor and all of their currently-PENDING products to APPROVED in one transaction. Revoking vendor approval leaves already-live products in place (admin can revoke individual listings as needed); future uploads from that vendor revert to PENDING.
+- 3D model review queue — handles the PENDING uploads from unapproved vendors and exposes the revoke / restore flow for APPROVED / REJECTED products.
 - Content moderation (flag inappropriate or malformed listings)
 - Platform analytics and reporting (orders, revenue, active vendors)
 
@@ -213,7 +215,7 @@ Stripe            →  payment processing
 - Platform is web-only in this phase
 - Real-time chat uses Supabase Realtime — no separate WebSocket server needed
 - Draco compression is applied server-side automatically; vendors upload uncompressed files
-- Admin approval is required before a product with a 3D model goes live
+- Admin approval is required at the **vendor** level before that vendor's uploads go live. Once a vendor is approved, their subsequent product uploads auto-publish; admins retain a per-listing revoke action for take-downs.
 
 ---
 

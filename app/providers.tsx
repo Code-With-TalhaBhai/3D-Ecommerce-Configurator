@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, type ReactNode } from "react";
 import { Provider as ReduxProvider } from "react-redux";
 import { SessionProvider } from "next-auth/react";
 
 import { makeStore, type AppStore } from "@/store";
 import { hydrateCartFromStorage, subscribeCartToStorage } from "@/store/persistence";
+import { RouteProgress } from "@/components/layout/route-progress";
 
 export function Providers({ children }: { children: ReactNode }) {
   const storeRef = useRef<AppStore | null>(null);
@@ -20,7 +21,14 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <SessionProvider>
-      <ReduxProvider store={storeRef.current}>{children}</ReduxProvider>
+      <ReduxProvider store={storeRef.current}>
+        {/* RouteProgress reads useSearchParams — wrap in Suspense so it doesn't
+            opt the whole tree out of static rendering. */}
+        <Suspense fallback={null}>
+          <RouteProgress />
+        </Suspense>
+        {children}
+      </ReduxProvider>
     </SessionProvider>
   );
 }

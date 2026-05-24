@@ -983,3 +983,88 @@ The chunk-S3-objects approach is the simplest path that always works. If upload 
 **Takeaway**
 
 When a piece of *infrastructure config* keeps biting you across multiple debug rounds, the cheapest long-term fix is to restructure the system so that config stops being load-bearing. CORS for browser-direct cloud-storage uploads is exactly that kind of trap — every new environment (preview deploy, custom domain, staging bucket) means another rule to apply, another origin to permit, another cache to invalidate. Routing the upload through your own API trades a bit of latency for an architecture that just works, anywhere, with no console steps.
+
+---
+
+## Issue 17 — `useInsertionEffect must not schedule updates` from the route-progress bar
+
+**Sprint:** Cross-sprint — *Loading & Navigation Feedback Pass* (top progress bar + segment-level `loading.tsx` fallbacks).
+
+**Symptom**
+
+Immediately after navigating to almost any page (e.g. clicking `Browse` in the public header), the browser console threw:
+
+```
+Console Error
+useInsertionEffect must not schedule updates.
+components/layout/route-progress.tsx (38:7) @ start
+
+  36 |       }
+  37 |       startedAt.current = performance.now();
+> 38 |       setPhase("loading");
+     |       ^
+  39 |     }
+  40 |
+  41 |     function finish() {
+```
+
+The progress bar still visually appeared, but the error fired on every Link click and back/forward.
+
+**Root cause**
+
+[components/layout/route-progress.tsx](../components/layout/route-progress.tsx) installs three navigation triggers:
+1. a capture-phase `click` listener on `document` (catches `<a>` and `<Link>` clicks),
+2. monkey-patches `window.history.pushState` / `replaceState` (catches programmatic `router.push` / `router.replace`),
+3. a `popstate` handler (catches back / forward).
+
+Each trigger calls `start()`, which synchronously called `setPhase("loading")` to make the bar visible.
+
+The Next 16 App Router **commits a client navigation by invoking `history.pushState` from inside a `useInsertionEffect` callback**. `useInsertionEffect` is reserved for synchronous DOM mutations that must happen *before* React paints — and React explicitly forbids any state update from being scheduled inside it (you'd risk a render loop or stale-DOM mismatch). React enforces this with the `useInsertionEffect must not schedule updates` warning.
+
+So the call chain at fault was:
+```
+Next router internal effect (useInsertionEffect)
+  └── window.history.pushState(...)          ← our patched version runs
+        └── start()
+              └── setPhase("loading")        ← React throws
+```
+
+The click and popstate paths were *not* causing the error (they fire from real browser events outside React's render cycle), but the pushState patch was — and that's the one Next.js uses for every client transition.
+
+**Fix**
+
+Rewrote [components/layout/route-progress.tsx](../components/layout/route-progress.tsx) so that **every `setPhase` call is dispatched via `queueMicrotask`**:
+
+```ts
+function setPhaseSafe(next: Phase) {
+  phaseRef.current = next;
+  // Defer the React state update so it can never land inside a
+  // useInsertionEffect callback.
+  queueMicrotask(() => setPhase(next));
+}
+```
+
+`queueMicrotask` schedules its callback for *after* the current synchronous task finishes — i.e. after the insertion-effect phase has wrapped up — so by the time React sees `setPhase`, we're back in normal task territory where state updates are legal.
+
+Three related cleanups went in at the same time:
+1. **Added `phaseRef`** — a ref mirror of `phase`. The subscribe-once `useEffect` previously read `phase` from a closure, so when we re-installed listeners on each phase change (to refresh the closure) we got a [phase]-dependency loop. Switching to a ref lets the effect install **once** and gives `start()`/`finish()` an always-current value.
+2. **Reduced effect dependencies to `[]`** — listeners install once on mount, tear down on unmount. The pathname/searchParams effect that ends the bar reads `phaseRef.current`, not `phase`, so it doesn't need `phase` in its deps either.
+3. **Defensive history un-patch** — on cleanup, only restore the original `pushState` / `replaceState` if our wrapper is still the active one. If a downstream library has chained another patch on top, we leave the chain alone rather than breaking it.
+
+**Why `queueMicrotask` (not `setTimeout(0)` or `requestAnimationFrame`)**
+
+- `queueMicrotask` runs **before** the next paint and before any `setTimeout` callback, but **after** the current synchronous task — exactly the gap we need. The progress bar still appears in the same frame the click was processed.
+- `setTimeout(0)` would defer until at least the next task tick (4 ms minimum in browsers), delaying the bar visibly.
+- `requestAnimationFrame` would defer until the next paint — same delay problem, and on slow nav the bar would lag by one frame even when it doesn't need to.
+
+**Verification**
+
+- Click any internal `<Link>` (e.g. `/products` → `/cart` → `/products/[slug]`): no console error, progress bar appears within ~1 frame, fades on commit.
+- Submit the register form (`router.push` after sign-in): no error, bar appears.
+- Use browser back / forward: no error, bar appears.
+- Open and close the configurator's variant picker (causes a `router.replace`-style URL update): no error.
+- `npx tsc --noEmit` — green.
+
+**Takeaway**
+
+When you monkey-patch a host-environment API that *might* be called from a React internal effect, never assume your hook callback can run synchronous React work. `queueMicrotask` is the cheapest, lowest-latency way to escape whatever effect phase happens to be on the stack. The same trap exists for any patched `MutationObserver`, `ResizeObserver`, or `IntersectionObserver` callback that ends up calling `setState` — if the observer's underlying notification ever fires during a React commit (and they sometimes do), you'll get the same insertion-effect warning. The fix is identical.

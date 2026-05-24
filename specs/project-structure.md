@@ -56,12 +56,14 @@ Route groups (`(name)`) don't appear in URLs but scope layouts. Public-facing un
 
 ### Root layout & global wiring
 - `layout.tsx` — Root layout. Loads Geist (sans + mono) from `next/font/google`, wraps everything in `<Providers>`.
-- `providers.tsx` — Client island. Mounts `SessionProvider` (NextAuth) + `ReduxProvider`, hydrates cart from localStorage and subscribes to writes.
-- `globals.css` — Tailwind v4 import, CSS tokens (background/foreground/muted/border/card/ring, light + dark), font-feature-settings for Geist alternates, custom thin scrollbar, `.bg-grid-fade` utility used by landing/auth hero backdrops.
+- `providers.tsx` — Client island. Mounts `SessionProvider` (NextAuth) + `ReduxProvider`, hydrates cart from localStorage and subscribes to writes. Also mounts `<RouteProgress>` inside a `<Suspense>` boundary (needed because RouteProgress calls `useSearchParams`).
+- `globals.css` — Tailwind v4 import, CSS tokens (background/foreground/muted/border/card/ring, light + dark), font-feature-settings for Geist alternates, custom thin scrollbar, `.bg-grid-fade` utility, and three loader keyframes (`shimmer`, `loader-dot`, `route-progress`).
 - `page.tsx` — Landing page. RSC; renders role-aware nav, gradient-text H1 hero with trust strip, 6-card feature grid, CTA band, footer.
+- `loading.tsx` — Root-level Suspense fallback. Renders `<PageLoader variant="fullscreen">` when a navigation has no deeper loading.tsx to cover it.
 
 ### Auth route group `(auth)/`
 - `layout.tsx` — Centered translucent card with grid-fade backdrop; brand link.
+- `loading.tsx` — `<PageLoader>` ("Securing your session"). Covers all `/login` and `/register` segment transitions.
 - `actions.ts` — Server actions: `signInAction`, `signUpAction`, `signOutAction`.
 - `login/page.tsx` + `login-form.tsx` — Login form (Credentials).
 - `register/page.tsx` + `register-form.tsx` — Register form; toggles Customer/Vendor; auto-signs-in on success.
@@ -69,23 +71,30 @@ Route groups (`(name)`) don't appear in URLs but scope layouts. Public-facing un
 ### Public marketplace
 - `products/layout.tsx` — Wraps `/products` with `<PublicHeader>`.
 - `products/page.tsx` — RSC. Lists 60 most-recent APPROVED products; supports `?q=`, `?min=`, `?max=` filters; renders cards with the lazy GLB thumbnail.
+- `products/loading.tsx` — Skeleton mirroring the listings grid (header block, search bar, 8 card skeletons in the same responsive grid as the live page).
 - `products/search-bar.tsx` — Client controlled form that pushes filter querystring.
 - `products/[slug]/page.tsx` — RSC product detail. Loads APPROVED product (else `notFound()`), generates OG metadata, mounts `<ProductConfigurator>` + optional `<ProductChatPanel>` (when viewer is signed in and isn't the vendor).
+- `products/[slug]/loading.tsx` — Skeleton mirroring `ProductConfigurator`'s 2-column split — viewer pane, vendor/title/price column, variant chips, controls block, CTA.
 - `products/[slug]/product-configurator.tsx` — Client island. Sticky 3D viewer (left) + scrolling aside (right) with title/price/stock pill, variant chips, controls panel, add-to-cart, description, stats ribbon.
 
 ### Cart, checkout, account
 - `cart/layout.tsx` — `<PublicHeader>` wrapper.
 - `cart/page.tsx` — RSC shell that mounts `<CartView>`.
+- `cart/loading.tsx` — Skeleton with 3 line items + sticky order-summary placeholder.
 - `cart/cart-view.tsx` — Client island. Reads Redux cart, quantity steppers, per-row remove, clear-cart confirm, order summary.
 - `checkout/layout.tsx` — Defense-in-depth `auth()` check + `<PublicHeader>`.
 - `checkout/page.tsx` + `checkout-client.tsx` — Order summary, promo input, POST to session API, redirect to Stripe.
+- `checkout/loading.tsx` — `<PageLoader>` ("Preparing checkout / Validating your cart").
 - `checkout/success/page.tsx` + `cart-clearer.tsx` — Looks up Order by `stripeSessionId`, renders line items, clears the Redux cart once on mount.
+- `checkout/success/loading.tsx` — `<PageLoader>` ("Finalising your order / Confirming the payment with our processor").
 - `checkout/cancel/page.tsx` — Friendly "no charge made" landing.
 - `account/layout.tsx` — Auth gate + `<PublicHeader>`.
 - `account/orders/page.tsx` — Customer purchase history.
+- `account/orders/loading.tsx` — Skeleton with 3 order-card placeholders matching the live cards' header + line-item + footer rhythm.
 
 ### Vendor route group `(vendor)/`
 - `layout.tsx` — Auth + role gate (VENDOR or ADMIN); glass sticky header with logo + pill nav.
+- `vendor/loading.tsx` — Inherited by every `/vendor/*` segment. 3-tile stat row + content-card with 4 row placeholders.
 - `vendor/page.tsx` — Dashboard (store name, stat tiles, manage-catalog card / empty-state CTA).
 - `vendor/onboarding/page.tsx` + `onboarding-form.tsx` + `actions.ts` — Storefront creation form for users without a Vendor row.
 - `vendor/products/page.tsx` — Per-row card list of vendor's products with status badge, rejection reason callout, inline `<ProductActions>` delete.
@@ -96,10 +105,11 @@ Route groups (`(name)`) don't appear in URLs but scope layouts. Public-facing un
 
 ### Admin route group `(admin)/`
 - `layout.tsx` — ADMIN-only gate; glass header with `Overview · Products · Vendors · Users · Orders · Promos` pill nav (overflow row on mobile).
+- `admin/loading.tsx` — Inherited by every `/admin/*` segment. 4-tile stat row + content-card with 5 row placeholders.
 - `admin/page.tsx` — Overview: 4 big-stat tiles, 3 small-stat groups, recent-orders panel, operational-alerts sidebar.
-- `admin/products/page.tsx` + `review-card.tsx` + `actions.ts` — Pending/Approved/Rejected review queue with inline 3D preview and reject-with-reason flow.
+- `admin/products/page.tsx` + `review-card.tsx` + `actions.ts` — Status-tabbed listing. Action footer is driven by the current status: PENDING → Approve / Reject, APPROVED → Revoke, REJECTED → Restore. Revoke and Reject share the same reason-textarea flow (`rejectProduct`); Restore calls `approveProduct` (which clears `rejectionReason`). Inline 3D preview lazy-loads `GlbViewer`.
 - `admin/users/page.tsx` + `user-row.tsx` + `actions.ts` — Filter tabs + search; role/suspend/delete per row with last-admin safety rails.
-- `admin/vendors/page.tsx` + `actions.ts` — Approve / revoke approval as a trust badge.
+- `admin/vendors/page.tsx` + `actions.ts` — Vendor approval acts as the *trust gate*: `approveVendor` runs in a transaction that also `updateMany`s the vendor's PENDING products to APPROVED (REJECTED products stay rejected). `unapproveVendor` flips `approvedAt` back to `null` but intentionally leaves already-live products alone — admin revokes individually from `/admin/products?status=approved`. Future uploads from an unapproved vendor fall back to PENDING.
 - `admin/orders/page.tsx` — Platform-wide read-only order list.
 - `admin/promos/page.tsx` + `promo-form.tsx` + `actions.ts` — Create / expire / delete promo codes.
 
@@ -108,7 +118,7 @@ All run on the Node runtime unless noted.
 
 - `auth/[...nextauth]/route.ts` — Re-exports NextAuth handlers (`GET`/`POST`).
 - `assets/[...key]/route.ts` — Same-origin asset proxy. Streams S3/CloudFront → browser so the browser never makes a cross-origin request (sidesteps CORS while CloudFront isn't policy-configured). `maxDuration: 60`.
-- `vendor/products/upload/route.ts` — Vendor GLB + variant texture upload. Multipart parse, Zod validation, Draco compression via `processGlb`, S3 upload, creates `Product` with `status: PENDING` + `ProductVariant` rows. `maxDuration: 60`.
+- `vendor/products/upload/{init,chunk,texture,complete}/route.ts` — Chunked upload pipeline (see issues-list #16 for the rationale: chunked through our API, no browser→S3 CORS). `init` issues an upload id; `chunk` streams each 4 MB GLB slice into a temp S3 key; `texture` accepts each variant's image; `complete` re-fetches every chunk, runs `processGlb` (Draco compression), uploads the final GLB, and creates the `Product` + `ProductVariant` rows. Product `status` is set at create time based on `vendor.approvedAt`: `APPROVED` if the vendor has been approved, else `PENDING`. `maxDuration: 60`.
 - `checkout/session/route.ts` — `POST` validates cart, creates `Order` in PENDING with stripeSessionId, opens Stripe Checkout Session (with optional one-shot coupon when promo applies).
 - `stripe/webhook/route.ts` — `POST` verifies Stripe signature on raw body. On `checkout.session.completed` / `async_payment_succeeded` → flips Order to PAID and decrements stock atomically; idempotent.
 - `products/[id]/messages/route.ts` — `GET` returns the thread; `POST` persists + broadcasts. Vendor-initiated DMs only allowed when the customer has previously messaged or ordered.
@@ -125,10 +135,14 @@ components/
 ├── ui/                ← Tiny primitives (no shadcn)
 │   ├── button.tsx     ← Variants: primary / secondary / outline / ghost / destructive. Sizes: sm / md / lg / icon
 │   ├── input.tsx      ← rounded-lg, soft shadow, two-layer focus ring
-│   └── label.tsx      ← 13px, tight tracking
+│   ├── label.tsx      ← 13px, tight tracking
+│   ├── spinner.tsx    ← CSS ring spinner (xs / sm / md / lg / xl); inherits text color; motion-reduce safe
+│   ├── skeleton.tsx   ← Block placeholder with left-to-right shimmer (@keyframes shimmer); aria-hidden
+│   └── page-loader.tsx ← Brand-glyph + rotating ring + animated dots; variant="fullscreen" | "section"
 ├── layout/
 │   ├── public-header.tsx   ← Sticky glass header, logo glyph, pill nav, cart badge, role-aware right side
-│   └── cart-badge.tsx      ← Client; reads cart count from Redux; 99+ cap with ring halo
+│   ├── cart-badge.tsx      ← Client; reads cart count from Redux; 99+ cap with ring halo
+│   └── route-progress.tsx  ← Client; top 2px progress bar. Anchor-click capture + patched history.pushState/replaceState + popstate; fades on pathname/searchParams change
 ├── viewer/
 │   ├── glb-viewer.tsx          ← Plain R3F canvas + Bounds + OrbitControls. Used by upload preview & admin review
 │   ├── glb-thumb.tsx           ← Low-power, demand-frameloop thumbnail renderer for product cards
@@ -292,13 +306,27 @@ Stripe → POST /api/stripe/webhook
   └── prisma.product.create({ status: PENDING, ...variants })
 ```
 
-### 3. Admin reviews & approves
+### 3. Admin reviews, revokes, or restores
 
 ```
-/admin/products?status=PENDING       (RSC: prisma.product.findMany)
-  └── <ReviewCard>                    (click-to-load GlbViewer; Approve / Reject UI)
-       └── server action approve() or reject(formData)   →  requireAdmin()
-            └── prisma.product.update + revalidatePath('/admin/products')
+Upload path  (api/vendor/products/upload/complete/route.ts):
+  vendor.approvedAt !== null
+    ? Product.status = APPROVED      ← auto-publishes
+    : Product.status = PENDING       ← queues for /admin/products
+
+Vendor approval  (/admin/vendors → Approve):
+  prisma.$transaction([
+    Vendor.update({ approvedAt: new Date() }),
+    Product.updateMany({ vendorId, status: PENDING }, { status: APPROVED }),
+  ])
+
+/admin/products?status=PENDING|APPROVED|REJECTED   (RSC)
+  └── <ReviewCard>                    (status-driven action footer)
+       ├── PENDING   → [Approve] / [Reject…]
+       ├── APPROVED  → [Revoke…]      (re-uses rejectProduct + reason textarea)
+       └── REJECTED  → [Restore]      (re-uses approveProduct, clears reason)
+            └── server action requireAdmin() + prisma.product.update
+                  + revalidatePath('/admin/products', '/products', '/vendor/products')
 ```
 
 ### 4. Customer ↔ vendor chat
@@ -314,6 +342,24 @@ User sends:
   └── broadcastChatMessage(channel, message)   ← fire-and-forget; persisted row is source of truth
 ```
 
+### 5. Navigation loading feedback
+
+```
+User clicks <Link href="/products">
+  │
+  ├── <RouteProgress> capture-phase click handler   →  setPhase("loading")
+  │     └── Top 2-px bar animates scaleX(0 → 0.96) over 1.4s
+  │
+  ▼
+Next.js suspends on the new segment
+  └── app/products/loading.tsx renders the grid skeleton
+        (<PublicHeader> from layout stays mounted above)
+
+Segment commits  →  usePathname / useSearchParams updates
+  └── <RouteProgress> useEffect →  setPhase("finishing")
+        └── 220-ms fade out → setPhase("idle")  →  bar unmounts
+```
+
 ---
 
 ## Conventions you'll see repeated
@@ -324,6 +370,8 @@ User sends:
 - **Asset URLs**: never hand a raw S3/CloudFront URL to the browser. Always run it through `toCdnUrl()` so the same-origin proxy can wrap it.
 - **Cart line keys**: `(productId, variantId)` together. The cart never carries finish/lighting/colour overrides — only the vendor variant survives into the order.
 - **Admin safety**: any admin write action calls `requireAdmin()` first; mutations against users also check `adminCount()` to refuse self-lockout or last-admin demotion.
+- **Product approval is vendor-gated**: at upload time, `Product.status` is `APPROVED` iff `Vendor.approvedAt !== null`, else `PENDING`. Approving a vendor batch-flips their queued PENDING products to APPROVED in the same transaction. Admin can revoke (APPROVED → REJECTED with reason) or restore (REJECTED → APPROVED) at any time from `/admin/products`. Revoking a vendor does not pull back their already-live products.
 - **Stripe orders**: `Order` is created **before** the Stripe session (PENDING, `stripeSessionId` patched in immediately after) so the webhook always has a row to flip.
 - **Promo codes**: always uppercased on lookup and on insert (`/admin/promos` already uppercases on create).
 - **Cart persistence key**: `3dmkt:cart:v1` (versioned, so a future schema bump can wipe and rehydrate cleanly).
+- **Loading feedback is two-layered**: every navigable segment gets a `loading.tsx` (segment-level Suspense fallback — skeleton when chrome is preserved, `<PageLoader>` when the page replaces full-screen) **and** the globally mounted `<RouteProgress>` fires the moment a same-origin link is clicked (covers Links, `router.push`/`router.replace`, and back/forward). Re-use `Spinner` for in-button waits, `Skeleton` for inline placeholders, `PageLoader` for full-screen / full-section waits.

@@ -94,3 +94,29 @@ body {
       radial-gradient(circle at 1px 1px, rgb(250 250 250 / 0.08) 1px, transparent 0);
   }
 }
+
+/* Loader animations — used by Spinner, Skeleton, PageLoader, RouteProgress */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes loader-dot {
+  0%, 60%, 100% { opacity: 0.2; }
+  30%           { opacity: 1; }
+}
+
+/* Easing curve mirrors NProgress so the bar feels familiar — fast start, long
+   tail. We never reach 100% before the route commits; the finishing state
+   fades the bar out so the user gets clean completion feedback. */
+@keyframes route-progress {
+  0%   { transform: scaleX(0); }
+  30%  { transform: scaleX(0.55); }
+  60%  { transform: scaleX(0.78); }
+  85%  { transform: scaleX(0.92); }
+  100% { transform: scaleX(0.96); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-grid-fade { animation: none; }
+}

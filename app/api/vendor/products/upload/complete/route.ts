@@ -67,7 +67,7 @@ export async function POST(req: Request) {
 
     const vendor = await prisma.vendor.findUnique({
       where: { userId: session.user.id },
-      select: { id: true },
+      select: { id: true, approvedAt: true },
     });
     if (!vendor) {
       return NextResponse.json(
@@ -221,6 +221,12 @@ export async function POST(req: Request) {
       ),
     );
 
+    // Vendor approval is the trust gate. Once admin has approved the store,
+    // their uploads go live immediately; otherwise the product still queues
+    // for review. Admins can always revoke an approved product later from
+    // /admin/products (Approved tab → Revoke).
+    const autoApprove = vendor.approvedAt !== null;
+
     const product = await prisma.product.create({
       data: {
         vendorId: vendor.id,
@@ -232,7 +238,7 @@ export async function POST(req: Request) {
         glbUrl,
         polyCount: processed.stats.triangles,
         fileSize: processed.stats.compressedBytes,
-        // status defaults to PENDING per schema; awaits admin review (AGENTS §3.7).
+        status: autoApprove ? "APPROVED" : "PENDING",
         variants: {
           create: data.variants.map((v) => ({
             color: v.color ?? null,
