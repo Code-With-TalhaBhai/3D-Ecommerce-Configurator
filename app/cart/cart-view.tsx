@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ProductThumb } from "@/components/viewer/product-thumb";
@@ -26,9 +26,19 @@ function itemKey(i: CartItem) {
 }
 
 export function CartView() {
-  const items = useAppSelector((s) => s.cart.items);
+  const storedItems = useAppSelector((s) => s.cart.items);
   const dispatch = useAppDispatch();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // The cart is hydrated from localStorage in app/providers.tsx's useEffect;
+  // on the very first client render the store may still be empty (matching
+  // the server's SSR output) or may have already been hydrated. Either way
+  // we lock the first paint to the empty state so React doesn't trip on a
+  // hydration mismatch (issues-list #18). After mount we switch to the
+  // real items.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const items = mounted ? storedItems : [];
 
   const subtotal = useMemo(
     () => items.reduce((sum, i) => sum + i.price * i.quantity, 0),

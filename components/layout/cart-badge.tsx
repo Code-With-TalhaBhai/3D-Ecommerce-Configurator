@@ -2,11 +2,31 @@
 
 import Link from "next/link";
 import { ShoppingBag } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { useAppSelector } from "@/store/hooks";
 
+/**
+ * Cart icon + count badge. The cart count is read from Redux, but Redux is
+ * populated from localStorage in a `useEffect` (see `app/providers.tsx` →
+ * `hydrateCartFromStorage`). That means the server-rendered HTML always has
+ * count=0, while the client may snap to the real count during the hydration
+ * window — historically causing a React hydration mismatch on the
+ * `aria-label` and the count pill (issues-list #18).
+ *
+ * Fix: gate every count-dependent output on a `mounted` flag that flips in
+ * `useEffect` AFTER hydration commits. First client paint matches the
+ * server (empty); the next render shows the real value.
+ */
 export function CartBadge() {
-  const count = useAppSelector((s) => s.cart.items.reduce((n, i) => n + i.quantity, 0));
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const storedCount = useAppSelector((s) =>
+    s.cart.items.reduce((n, i) => n + i.quantity, 0),
+  );
+  const count = mounted ? storedCount : 0;
+
   return (
     <Link
       href="/cart"
