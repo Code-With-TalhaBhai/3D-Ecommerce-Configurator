@@ -75,7 +75,7 @@ Route groups (`(name)`) don't appear in URLs but scope layouts. Public-facing un
 - `products/search-bar.tsx` — Client controlled form that pushes filter querystring.
 - `products/[slug]/page.tsx` — RSC product detail. Loads APPROVED product (else `notFound()`), generates OG metadata, mounts `<ProductConfigurator>` + optional `<ProductChatPanel>` (when viewer is signed in and isn't the vendor).
 - `products/[slug]/loading.tsx` — Skeleton mirroring `ProductConfigurator`'s 2-column split — viewer pane, vendor/title/price column, variant chips, controls block, CTA.
-- `products/[slug]/product-configurator.tsx` — Client island. Sticky 3D viewer (left) + scrolling aside (right) with title/price/stock pill, variant chips, controls panel, add-to-cart, description, stats ribbon.
+- `products/[slug]/product-configurator.tsx` — Client island. Sticky 3D viewer (left) + scrolling aside (right) with title/price/stock pill, variant chips, controls panel, add-to-cart, description, stats ribbon. An in-viewer `<ViewerLoader>` (brand glyph + rotating ring + animated dots, same language as the global `PageLoader`) fills the canvas frame until `ConfigurableViewer` fires `onFirstFrame`, then fades out over 300 ms. The same loader doubles as the `dynamic({ loading })` fallback so the JS-chunk and GLB-fetch phases share one continuous visual.
 
 ### Cart, checkout, account
 - `cart/layout.tsx` — `<PublicHeader>` wrapper.

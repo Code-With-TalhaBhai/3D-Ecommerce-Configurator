@@ -12,7 +12,13 @@ import { resetVariant, setVariant } from "@/store/slices/viewerSlice";
 
 const ConfigurableViewer = dynamic(
   () => import("@/components/viewer/configurable-viewer").then((m) => m.ConfigurableViewer),
-  { ssr: false, loading: () => <ViewerSkeleton message="Loading 3D viewer…" /> },
+  {
+    ssr: false,
+    // Same loader as the post-mount overlay, so the user sees one continuous
+    // animation across the JS-chunk-loading and GLB-fetching phases instead
+    // of two visually different placeholders flashing in sequence.
+    loading: () => <ViewerLoader label="Loading viewer" hint="Preparing the renderer" />,
+  },
 );
 
 const ControlsPanel = dynamic(
@@ -59,14 +65,33 @@ export function ProductConfigurator({ product }: { product: Product }) {
   const [renderMs, setRenderMs] = useState<number | null>(null);
   const [slowConnection, setSlowConnection] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  // `modelReady` flips when ConfigurableViewer signals onFirstFrame.
+  // `showLoader` stays true through a 350 ms fade-out window after that, so
+  // the loader gets a clean transition rather than disappearing instantly.
+  const [modelReady, setModelReady] = useState(false);
+  const [showLoader, setShowLoader] = useState(true);
   const screenshotterRef = useRef<(() => string | null) | null>(null);
 
   useEffect(() => {
     dispatch(resetVariant());
+    // Re-arm the loader whenever the user navigates to a different product —
+    // the new GLB has to be fetched & parsed from scratch.
+    setModelReady(false);
+    setShowLoader(true);
+    setRenderMs(null);
     return () => {
       dispatch(resetVariant());
     };
   }, [dispatch, product.id]);
+
+  // After the first frame fires, fade the loader out and unmount it once the
+  // CSS transition completes. 350 ms ≥ the 300 ms transition duration so the
+  // unmount happens cleanly after the fade lands.
+  useEffect(() => {
+    if (!modelReady) return;
+    const t = setTimeout(() => setShowLoader(false), 350);
+    return () => clearTimeout(t);
+  }, [modelReady]);
 
   useEffect(() => {
     type ConnInfo = { effectiveType?: string; saveData?: boolean };
@@ -77,10 +102,13 @@ export function ProductConfigurator({ product }: { product: Product }) {
     setSlowConnection(slow);
   }, []);
 
-  const mountedAt = useMemo(() => performance.now(), []);
+  // Reset on every product change so renderMs reflects the current model's
+  // load time, not the first product the user happened to land on.
+  const mountedAt = useMemo(() => performance.now(), [product.id]);
   function handleFirstFrame() {
     const elapsed = performance.now() - mountedAt;
     setRenderMs(elapsed);
+    setModelReady(true);
     if (process.env.NODE_ENV === "development") {
       console.info(`[viewer] first frame in ${elapsed.toFixed(0)} ms`);
     }
@@ -147,10 +175,25 @@ export function ProductConfigurator({ product }: { product: Product }) {
               onScreenshotterReady={onScreenshotterReady}
             />
           ) : (
-            <ViewerSkeleton message="3D model unavailable" />
+            <ViewerLoader label="3D model unavailable" />
           )}
 
-          {slowConnection && (
+          {product.glbUrl && showLoader && (
+            <div
+              aria-live="polite"
+              className={cn(
+                "absolute inset-0 z-10 transition-opacity duration-300 ease-out",
+                modelReady ? "pointer-events-none opacity-0" : "opacity-100",
+              )}
+            >
+              <ViewerLoader
+                label="Preparing 3D model"
+                hint={slowConnection ? "Slow connection — this may take a moment" : "Downloading and rendering"}
+              />
+            </div>
+          )}
+
+          {slowConnection && modelReady && (
             <div className="absolute left-3 top-3 rounded-full border border-amber-200/80 bg-amber-50/95 px-3 py-1 text-[11px] font-medium text-amber-900 shadow-sm backdrop-blur dark:border-amber-700/40 dark:bg-amber-950/90 dark:text-amber-200">
               Slow connection — model may take a moment.
             </div>
@@ -327,10 +370,43 @@ function VariantChip({
   );
 }
 
-function ViewerSkeleton({ message }: { message: string }) {
+/**
+ * In-viewer loader. Same visual language as the global PageLoader (brand
+ * glyph + rotating ring + animated dots) but scaled to fit a constrained
+ * container and rendered against a soft gradient + backdrop blur so it
+ * reads as an integrated part of the viewer frame, not a modal popping in.
+ */
+function ViewerLoader({ label, hint }: { label: string; hint?: string }) {
   return (
-    <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-zinc-400">
-      {message}
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex h-full w-full flex-col items-center justify-center gap-4 bg-gradient-to-br from-zinc-50/95 via-white/95 to-zinc-100/95 px-6 text-center backdrop-blur-sm dark:from-zinc-900/95 dark:via-zinc-900/95 dark:to-zinc-950/95"
+    >
+      <div className="relative">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 scale-[2.4] rounded-full bg-zinc-900/[0.04] blur-2xl dark:bg-zinc-100/[0.05]"
+        />
+        <span className="relative grid h-12 w-12 place-items-center rounded-xl bg-zinc-900 text-xs font-semibold tracking-tight text-white shadow-lg shadow-zinc-900/20 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none">
+          3D
+        </span>
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -inset-2.5 rounded-full border-[1.5px] border-zinc-900/10 border-t-zinc-900/70 animate-[spin_1.1s_linear_infinite] dark:border-zinc-100/10 dark:border-t-zinc-100/70"
+        />
+      </div>
+      <div className="flex flex-col items-center gap-0.5">
+        <p className="text-sm font-medium tracking-tight text-zinc-700 dark:text-zinc-200">
+          {label}
+          <span className="ml-0.5 inline-flex">
+            <span className="animate-[loader-dot_1.4s_ease-in-out_infinite]">.</span>
+            <span className="animate-[loader-dot_1.4s_ease-in-out_infinite_200ms]">.</span>
+            <span className="animate-[loader-dot_1.4s_ease-in-out_infinite_400ms]">.</span>
+          </span>
+        </p>
+        {hint && <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{hint}</p>}
+      </div>
     </div>
   );
 }
