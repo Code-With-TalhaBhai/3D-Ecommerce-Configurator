@@ -44,7 +44,7 @@ export default async function AdminVendorsPage({
             Vendors
           </h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Vendor storefronts. Approval is a trust badge — individual products still go through the product review queue.
+            Vendor storefronts. Approving a vendor is the trust gate — their uploads go live automatically, and any queued products flip to approved at the same time. Revoke an individual listing from <a className="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300" href="/admin/products?status=approved">Approved products</a>.
           </p>
         </div>
         <nav className="flex items-center gap-1 rounded-md border border-zinc-200 bg-white p-1 text-sm dark:border-zinc-800 dark:bg-zinc-900">

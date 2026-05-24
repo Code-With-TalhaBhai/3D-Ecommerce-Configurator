@@ -107,9 +107,9 @@ Route groups (`(name)`) don't appear in URLs but scope layouts. Public-facing un
 - `layout.tsx` — ADMIN-only gate; glass header with `Overview · Products · Vendors · Users · Orders · Promos` pill nav (overflow row on mobile).
 - `admin/loading.tsx` — Inherited by every `/admin/*` segment. 4-tile stat row + content-card with 5 row placeholders.
 - `admin/page.tsx` — Overview: 4 big-stat tiles, 3 small-stat groups, recent-orders panel, operational-alerts sidebar.
-- `admin/products/page.tsx` + `review-card.tsx` + `actions.ts` — Pending/Approved/Rejected review queue with inline 3D preview and reject-with-reason flow.
+- `admin/products/page.tsx` + `review-card.tsx` + `actions.ts` — Status-tabbed listing. Action footer is driven by the current status: PENDING → Approve / Reject, APPROVED → Revoke, REJECTED → Restore. Revoke and Reject share the same reason-textarea flow (`rejectProduct`); Restore calls `approveProduct` (which clears `rejectionReason`). Inline 3D preview lazy-loads `GlbViewer`.
 - `admin/users/page.tsx` + `user-row.tsx` + `actions.ts` — Filter tabs + search; role/suspend/delete per row with last-admin safety rails.
-- `admin/vendors/page.tsx` + `actions.ts` — Approve / revoke approval as a trust badge.
+- `admin/vendors/page.tsx` + `actions.ts` — Vendor approval acts as the *trust gate*: `approveVendor` runs in a transaction that also `updateMany`s the vendor's PENDING products to APPROVED (REJECTED products stay rejected). `unapproveVendor` flips `approvedAt` back to `null` but intentionally leaves already-live products alone — admin revokes individually from `/admin/products?status=approved`. Future uploads from an unapproved vendor fall back to PENDING.
 - `admin/orders/page.tsx` — Platform-wide read-only order list.
 - `admin/promos/page.tsx` + `promo-form.tsx` + `actions.ts` — Create / expire / delete promo codes.
 
@@ -118,7 +118,7 @@ All run on the Node runtime unless noted.
 
 - `auth/[...nextauth]/route.ts` — Re-exports NextAuth handlers (`GET`/`POST`).
 - `assets/[...key]/route.ts` — Same-origin asset proxy. Streams S3/CloudFront → browser so the browser never makes a cross-origin request (sidesteps CORS while CloudFront isn't policy-configured). `maxDuration: 60`.
-- `vendor/products/upload/route.ts` — Vendor GLB + variant texture upload. Multipart parse, Zod validation, Draco compression via `processGlb`, S3 upload, creates `Product` with `status: PENDING` + `ProductVariant` rows. `maxDuration: 60`.
+- `vendor/products/upload/{init,chunk,texture,complete}/route.ts` — Chunked upload pipeline (see issues-list #16 for the rationale: chunked through our API, no browser→S3 CORS). `init` issues an upload id; `chunk` streams each 4 MB GLB slice into a temp S3 key; `texture` accepts each variant's image; `complete` re-fetches every chunk, runs `processGlb` (Draco compression), uploads the final GLB, and creates the `Product` + `ProductVariant` rows. Product `status` is set at create time based on `vendor.approvedAt`: `APPROVED` if the vendor has been approved, else `PENDING`. `maxDuration: 60`.
 - `checkout/session/route.ts` — `POST` validates cart, creates `Order` in PENDING with stripeSessionId, opens Stripe Checkout Session (with optional one-shot coupon when promo applies).
 - `stripe/webhook/route.ts` — `POST` verifies Stripe signature on raw body. On `checkout.session.completed` / `async_payment_succeeded` → flips Order to PAID and decrements stock atomically; idempotent.
 - `products/[id]/messages/route.ts` — `GET` returns the thread; `POST` persists + broadcasts. Vendor-initiated DMs only allowed when the customer has previously messaged or ordered.
@@ -306,13 +306,27 @@ Stripe → POST /api/stripe/webhook
   └── prisma.product.create({ status: PENDING, ...variants })
 ```
 
-### 3. Admin reviews & approves
+### 3. Admin reviews, revokes, or restores
 
 ```
-/admin/products?status=PENDING       (RSC: prisma.product.findMany)
-  └── <ReviewCard>                    (click-to-load GlbViewer; Approve / Reject UI)
-       └── server action approve() or reject(formData)   →  requireAdmin()
-            └── prisma.product.update + revalidatePath('/admin/products')
+Upload path  (api/vendor/products/upload/complete/route.ts):
+  vendor.approvedAt !== null
+    ? Product.status = APPROVED      ← auto-publishes
+    : Product.status = PENDING       ← queues for /admin/products
+
+Vendor approval  (/admin/vendors → Approve):
+  prisma.$transaction([
+    Vendor.update({ approvedAt: new Date() }),
+    Product.updateMany({ vendorId, status: PENDING }, { status: APPROVED }),
+  ])
+
+/admin/products?status=PENDING|APPROVED|REJECTED   (RSC)
+  └── <ReviewCard>                    (status-driven action footer)
+       ├── PENDING   → [Approve] / [Reject…]
+       ├── APPROVED  → [Revoke…]      (re-uses rejectProduct + reason textarea)
+       └── REJECTED  → [Restore]      (re-uses approveProduct, clears reason)
+            └── server action requireAdmin() + prisma.product.update
+                  + revalidatePath('/admin/products', '/products', '/vendor/products')
 ```
 
 ### 4. Customer ↔ vendor chat
@@ -356,6 +370,7 @@ Segment commits  →  usePathname / useSearchParams updates
 - **Asset URLs**: never hand a raw S3/CloudFront URL to the browser. Always run it through `toCdnUrl()` so the same-origin proxy can wrap it.
 - **Cart line keys**: `(productId, variantId)` together. The cart never carries finish/lighting/colour overrides — only the vendor variant survives into the order.
 - **Admin safety**: any admin write action calls `requireAdmin()` first; mutations against users also check `adminCount()` to refuse self-lockout or last-admin demotion.
+- **Product approval is vendor-gated**: at upload time, `Product.status` is `APPROVED` iff `Vendor.approvedAt !== null`, else `PENDING`. Approving a vendor batch-flips their queued PENDING products to APPROVED in the same transaction. Admin can revoke (APPROVED → REJECTED with reason) or restore (REJECTED → APPROVED) at any time from `/admin/products`. Revoking a vendor does not pull back their already-live products.
 - **Stripe orders**: `Order` is created **before** the Stripe session (PENDING, `stripeSessionId` patched in immediately after) so the webhook always has a row to flip.
 - **Promo codes**: always uppercased on lookup and on insert (`/admin/promos` already uppercases on create).
 - **Cart persistence key**: `3dmkt:cart:v1` (versioned, so a future schema bump can wipe and rehydrate cleanly).
