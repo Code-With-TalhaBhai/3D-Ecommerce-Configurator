@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -38,6 +39,7 @@ type ProgressStage =
   | "presigning"
   | "uploading_glb"
   | "uploading_textures"
+  | "uploading_thumbnail"
   | "finalizing";
 
 type Progress = { stage: ProgressStage; pct: number };
@@ -46,8 +48,11 @@ const STAGE_LABEL: Record<ProgressStage, string> = {
   presigning: "Preparing upload…",
   uploading_glb: "Uploading model",
   uploading_textures: "Uploading variant textures",
+  uploading_thumbnail: "Capturing thumbnail",
   finalizing: "Compressing & saving",
 };
+
+type ScreenshotFn = (maxSize?: number) => string | null;
 
 type UploadResult = { status: number; text: string };
 
@@ -109,6 +114,11 @@ export function NewProductForm() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [variants, setVariants] = useState<VariantDraft[]>([]);
+  // GlbViewer hands us a synchronous "capture the current frame as a PNG
+  // data URL" function once the renderer is mounted. We stash it here and
+  // call it at submit time to produce a thumbnail without rendering the
+  // model a second time.
+  const screenshotterRef = useRef<ScreenshotFn | null>(null);
 
   // Manage blob URL lifecycle so we don't leak memory across selections.
   useEffect(() => {
@@ -287,7 +297,36 @@ export function NewProductForm() {
         textureIdx++;
       }
 
-      // Step 4: finalize. Server pulls every chunk back from S3, concatenates,
+      // Step 4: capture + upload the 2D thumbnail from the live R3F preview.
+      // Optional — if the renderer isn't ready or the capture fails, we just
+      // skip and the product falls back to the icon placeholder on listings.
+      // 95–96% of the bar.
+      let thumbnailKey: string | undefined;
+      setProgress({ stage: "uploading_thumbnail", pct: 95 });
+      try {
+        const dataUrl = screenshotterRef.current?.(512);
+        if (dataUrl?.startsWith("data:image/png")) {
+          const thumbBlob = await (await fetch(dataUrl)).blob();
+          if (thumbBlob.size > 0) {
+            const thumbRes = await postWithProgress(
+              `/api/vendor/products/upload/thumbnail?uploadId=${uploadId}`,
+              thumbBlob,
+              "image/png",
+              () => {
+                /* small payload — no fine-grained progress needed */
+              },
+            );
+            if (thumbRes.status >= 200 && thumbRes.status < 300) {
+              const parsed = JSON.parse(thumbRes.text) as { key?: string };
+              if (parsed.key) thumbnailKey = parsed.key;
+            }
+          }
+        }
+      } catch {
+        // Thumbnail is a nice-to-have; never block the upload on it.
+      }
+
+      // Step 5: finalize. Server pulls every chunk back from S3, concatenates,
       // runs Draco compression, and creates the Product row. We don't know
       // exactly how long compression takes, so pin the bar at 96% during the
       // call.
@@ -302,6 +341,7 @@ export function NewProductForm() {
           description,
           price,
           stock,
+          thumbnailKey,
           variants: variants.map((v, i) => {
             const entry: {
               color?: string;
@@ -507,7 +547,13 @@ export function NewProductForm() {
         <Label>Preview</Label>
         <div className="aspect-square overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
           {previewUrl ? (
-            <GlbViewer src={previewUrl} className="h-full w-full" />
+            <GlbViewer
+              src={previewUrl}
+              className="h-full w-full"
+              onScreenshotterReady={(fn) => {
+                screenshotterRef.current = fn;
+              }}
+            />
           ) : (
             <ViewerSkeleton message="Select a .glb file to preview here" />
           )}

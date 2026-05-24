@@ -37,6 +37,7 @@ const completeSchema = z.object({
   price: z.coerce.number().nonnegative().max(1_000_000),
   stock: z.coerce.number().int().min(0).max(100_000),
   variants: z.array(variantSchema).max(MAX_VARIANTS).optional().default([]),
+  thumbnailKey: z.string().max(300).optional(),
 });
 
 function partKey(vendorId: string, uploadId: string, part: number) {
@@ -106,6 +107,17 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
+    }
+
+    // Thumbnail key is written by the /thumbnail route at this exact path.
+    // Pin both the upload id and the .png suffix so a request can't reference
+    // a sibling upload's thumbnail or an unrelated S3 key.
+    const expectedThumbnailKey = `vendors/${vendor.id}/thumbnails/${data.uploadId}.png`;
+    if (data.thumbnailKey && data.thumbnailKey !== expectedThumbnailKey) {
+      return NextResponse.json(
+        { error: "thumbnailKey does not match this upload." },
+        { status: 400 },
+      );
     }
 
     // Re-validate every texture before we burn CPU on Draco.
@@ -227,6 +239,10 @@ export async function POST(req: Request) {
     // /admin/products (Approved tab → Revoke).
     const autoApprove = vendor.approvedAt !== null;
 
+    const thumbnailUrl = data.thumbnailKey
+      ? storage.publicUrl(data.thumbnailKey)
+      : null;
+
     const product = await prisma.product.create({
       data: {
         vendorId: vendor.id,
@@ -236,6 +252,7 @@ export async function POST(req: Request) {
         price: data.price,
         stock: data.stock,
         glbUrl,
+        thumbnailUrl,
         polyCount: processed.stats.triangles,
         fileSize: processed.stats.compressedBytes,
         status: autoApprove ? "APPROVED" : "PENDING",

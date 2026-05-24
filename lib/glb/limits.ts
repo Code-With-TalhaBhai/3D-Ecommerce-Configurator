@@ -17,3 +17,9 @@ export const ACCEPTED_TEXTURE_MIME = new Set([
   "image/png",
   "image/webp",
 ]);
+
+// Product thumbnail constraints. Thumbnails are captured client-side from
+// the live R3F preview in the vendor upload form at 512×512 PNG — typically
+// 30–200 KB. 1 MB gives plenty of headroom for textured / high-poly models
+// that compress poorly.
+export const MAX_THUMBNAIL_BYTES = 1 * 1024 * 1024;

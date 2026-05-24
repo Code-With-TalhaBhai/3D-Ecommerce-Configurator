@@ -36,6 +36,7 @@ The platform replaces static 2D product images with real-time 3D interaction (pa
 - Server-side Draco compression applied automatically on upload
 - Upload validation: format check, corrupt file detection, MIME type verification
 - Preview render shown to vendor before publishing
+- **2D thumbnail auto-captured** from the live preview during upload (client-side PNG, max 1 MB), stored alongside the GLB and used wherever a static product image is needed (marketplace listings, vendor catalog, cart, checkout, OG images). The live 3D viewer is reserved for the product detail page.
 - Models stored on AWS S3, served via CloudFront CDN
 - **Vendor-gated approval**: products uploaded by an approved vendor are auto-approved and go live immediately. Products uploaded by a vendor whose store has not yet been approved sit in the admin review queue.
 - Admin can **revoke an approved listing** at any time from `/admin/products?status=approved` (re-uses the rejection-reason flow so vendors get an explanation).

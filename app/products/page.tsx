@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Box, PackageOpen, SearchX } from "lucide-react";
+import { PackageOpen, SearchX } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { toCdnUrl } from "@/lib/storage/cdn";
-import { GlbThumbLazy } from "@/components/viewer/glb-thumb-lazy";
+import { ProductThumb } from "@/components/viewer/product-thumb";
 import { SearchBar } from "./search-bar";
 import type { Prisma } from "@/app/generated/prisma/client";
 
@@ -101,25 +101,13 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
                   href={`/products/${p.slug}`}
                   className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.03] transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg hover:shadow-zinc-900/[0.06] dark:border-zinc-800/80 dark:bg-zinc-900 dark:shadow-none dark:hover:border-zinc-700 dark:hover:bg-zinc-900/80"
                 >
-                  <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-zinc-50 via-zinc-100 to-zinc-200 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950">
-                    {p.thumbnailUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={toCdnUrl(p.thumbnailUrl)!}
-                        alt={p.title}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                        loading="lazy"
-                      />
-                    ) : p.glbUrl ? (
-                      <GlbThumbLazy
-                        src={toCdnUrl(p.glbUrl)!}
-                        className="h-full w-full"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-zinc-400">
-                        <Box className="h-8 w-8" />
-                      </div>
-                    )}
+                  <div className="relative aspect-[4/3]">
+                    <ProductThumb
+                      src={toCdnUrl(p.thumbnailUrl)}
+                      alt={p.title}
+                      className="h-full w-full"
+                      imgClassName="group-hover:scale-[1.03]"
+                    />
                     {p._count.variants > 0 && (
                       <span className="absolute right-3 top-3 inline-flex items-center rounded-full border border-zinc-200/80 bg-white/90 px-2 py-0.5 text-[10px] font-medium tracking-tight text-zinc-700 shadow-sm backdrop-blur dark:border-zinc-700/80 dark:bg-zinc-900/90 dark:text-zinc-300">
                         {p._count.variants} variant{p._count.variants === 1 ? "" : "s"}
