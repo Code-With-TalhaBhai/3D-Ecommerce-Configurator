@@ -176,13 +176,21 @@ function ConfigurableModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewer.finish, gltf.scene]);
 
-  // --- Apply texture (load if URL set, restore original otherwise) ---
+  // --- Apply texture / base-color map (single source of truth for mat.map) ---
+  // Priority: a custom texture wins; otherwise, when a solid color override is
+  // active we drop the base-color (albedo) map so the picked color renders true
+  // — a tinted base texture would otherwise multiply against the override and
+  // produce the wrong color on any non-white model. With no texture and no
+  // color override we restore the model's original map.
   useEffect(() => {
     let cancelled = false;
 
     function applyMap(map: THREE.Texture | null) {
       eachMaterial((mat, originals) => {
-        const next = map ?? originals?.map ?? null;
+        let next: THREE.Texture | null;
+        if (map) next = map;
+        else if (viewer.color) next = null;
+        else next = originals?.map ?? null;
         mat.map = next;
         if (next) {
           next.wrapS = THREE.RepeatWrapping;
@@ -221,7 +229,7 @@ function ConfigurableModel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer.textureUrl, gltf.scene]);
+  }, [viewer.textureUrl, viewer.color, gltf.scene]);
 
   return <primitive object={gltf.scene} />;
 }
