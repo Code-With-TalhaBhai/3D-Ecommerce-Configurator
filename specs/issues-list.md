@@ -1175,3 +1175,68 @@ Two options would avoid the race in theory: (a) initialise the Redux store with 
 **Takeaway**
 
 Any client component that reads from a store that's hydrated from `localStorage` in an effect must defer its first render to match the server. The trap gets worse the moment a `<Suspense>` boundary appears anywhere above the cart consumer, because Suspense fragments hydration into multiple commits and gives the rehydrating effect a chance to land between them. Rule of thumb: if a component's output depends on data that is *only* available on the client, gate it on a `mounted` flag, regardless of where the data comes from (localStorage, sessionStorage, `window.matchMedia`, `navigator.connection`, `Intl.DateTimeFormat` with a locale-sensitive output, etc.). The single extra render is cheaper than a hydration regeneration of the entire subtree, and the code is easier to reason about than trying to keep the server and client snapshots in lockstep.
+
+---
+
+## Issue 19 — Color customization renders the wrong color on any non-white product
+
+**Sprint:** 5–6 — *3D viewer & customization* (Rich Customization Pass, Feature 51–55).
+
+**Symptom**
+
+In the product configurator (`/products/[slug]`), picking a color swatch from the controls panel works correctly for some products but not others. Specifically:
+
+- A product whose default appearance is **white** (e.g. a plain white sneaker) re-colors faithfully — pick "Wine" and the model turns wine-red.
+- A product with a **non-white** default appearance (e.g. a model that ships with a colored base-color texture) re-colors *wrong* — pick "Wine" and the model turns a muddy, darkened, off-hue color that's nothing like the swatch.
+
+**Root cause**
+
+The color override in [components/viewer/configurable-viewer.tsx](../components/viewer/configurable-viewer.tsx) did:
+
+```ts
+if (viewer.color) mat.color.set(viewer.color);
+```
+
+In a PBR material, the final rendered surface color is **`baseColorTexture (map) × material.color`**, not `material.color` alone. The `mat.color` field is a *tint multiplier* over the albedo texture.
+
+- A white-appearing product typically has **no base-color texture** (or a white one). With no `map`, the final color is `material.color` directly, so setting `mat.color` to the swatch shows the swatch exactly. ✅
+- A colored product carries a **colored base-color texture**. Setting `mat.color` to "Wine" then renders `wineTexture_pixels × wine` → the texture's own hue multiplies against the override and produces the wrong, darkened color. ❌
+
+The user described this as "default color white works, other default colors don't" — but the true differentiator isn't the *color* value, it's the *presence of a base-color texture* driving that default appearance.
+
+**Fix**
+
+When a solid color override is active (and no custom texture is selected), suppress the base-color (albedo) map so the picked color renders true. The texture effect was made the single source of truth for `mat.map`, with a three-way priority:
+
+```ts
+// inside applyMap(), now also depends on viewer.color
+let next: THREE.Texture | null;
+if (map) next = map;                       // 1. a custom texture wins
+else if (viewer.color) next = null;        // 2. solid color override → drop base map
+else next = originals?.map ?? null;        // 3. nothing active → restore original
+mat.map = next;
+```
+
+and the effect's dependency array gained `viewer.color`:
+
+```ts
+}, [viewer.textureUrl, viewer.color, gltf.scene]);
+```
+
+The existing color effect (`mat.color.set(viewer.color)` / restore from snapshot) is unchanged — with the albedo map removed, that color now renders faithfully on any model. Clearing the color override restores both the original `mat.color` (from the per-material snapshot) and the original `mat.map`.
+
+**Why drop the whole base map instead of trying to "neutralize" the texture's hue**
+
+`map` is only the **albedo / base-color** channel — normal maps, roughness maps, AO, etc. live on separate fields and are left untouched, so surface detail (bumps, wear, metalness variation) survives. Dropping only the albedo is exactly what "paint this a solid color" means to a shopper. Attempting to keep the albedo texture but cancel its hue (e.g. desaturate-then-tint) is a fragile shader-level operation with no clean Three.js API and unpredictable results across vendor textures — out of scope for an MVP configurator where the swatch is a *preview* (only `variantId` survives into the cart anyway).
+
+**Verification**
+
+- On a white product: pick each swatch → color matches the swatch exactly (unchanged from before).
+- On a non-white/textured product: pick each swatch → color now matches the swatch instead of multiplying against the texture.
+- Pick "Original" (clears the override) → the base-color texture and original tint both return.
+- Pick a vendor variant that carries a texture → the variant texture still wins over the color override (priority #1).
+- `npx tsc --noEmit` — green.
+
+**Takeaway**
+
+In PBR, `material.color` is a *multiplier over the albedo texture*, not the surface color. Any "recolor this product" feature has to account for the base-color map — either by removing it (solid repaint, done here) or by compositing the tint into the texture sample in a custom shader (full-fidelity recolor, much more work). A recolor that only sets `material.color` will silently look correct on untextured models and wrong on every textured one — the most deceptive kind of bug because it passes the first test you try.
