@@ -105,8 +105,13 @@ function newVariant(): VariantDraft {
   };
 }
 
-export function NewProductForm() {
+type CategoryOption = { id: string; name: string; slug: string };
+
+export function NewProductForm({ categories }: { categories: CategoryOption[] }) {
   const router = useRouter();
+  // Default the dropdown to "Others" so a category is always selected.
+  const defaultCategoryId =
+    categories.find((c) => c.slug === "others")?.id ?? categories[0]?.id ?? "";
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -205,6 +210,7 @@ export function NewProductForm() {
     const description = String(fd.get("description") ?? "");
     const price = Number(fd.get("price") ?? 0);
     const stock = Number(fd.get("stock") ?? 0);
+    const categoryId = String(fd.get("categoryId") ?? "");
 
     const variantsWithTexture = variants
       .map((v, i) => (v.texture ? { variant: v, index: i, texture: v.texture } : null))
@@ -341,6 +347,7 @@ export function NewProductForm() {
           description,
           price,
           stock,
+          categoryId,
           thumbnailKey,
           variants: variants.map((v, i) => {
             const entry: {
@@ -416,6 +423,27 @@ export function NewProductForm() {
             <Input id="stock" name="stock" type="number" min="0" required disabled={submitting} />
             {fieldErrors.stock && <p className="text-xs text-red-600">{fieldErrors.stock[0]}</p>}
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="categoryId">Category</Label>
+          <select
+            id="categoryId"
+            name="categoryId"
+            defaultValue={defaultCategoryId}
+            required
+            disabled={submitting}
+            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-100"
+          >
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {fieldErrors.categoryId && (
+            <p className="text-xs text-red-600">{fieldErrors.categoryId[0]}</p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">

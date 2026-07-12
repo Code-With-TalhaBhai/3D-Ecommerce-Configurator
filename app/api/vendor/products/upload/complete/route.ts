@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
 import { processGlb } from "@/lib/glb/process";
+import { resolveCategoryId } from "@/lib/categories";
 import {
   ACCEPTED_TEXTURE_MIME,
   MAX_GLB_BYTES,
@@ -36,6 +37,7 @@ const completeSchema = z.object({
   description: z.string().min(10).max(5000),
   price: z.coerce.number().nonnegative().max(1_000_000),
   stock: z.coerce.number().int().min(0).max(100_000),
+  categoryId: z.string().max(60).optional(),
   variants: z.array(variantSchema).max(MAX_VARIANTS).optional().default([]),
   thumbnailKey: z.string().max(300).optional(),
 });
@@ -243,9 +245,14 @@ export async function POST(req: Request) {
       ? storage.publicUrl(data.thumbnailKey)
       : null;
 
+    // Validate the selected category, defaulting to "Others" when absent or
+    // stale (e.g. the category was deleted between page load and submit).
+    const categoryId = await resolveCategoryId(data.categoryId);
+
     const product = await prisma.product.create({
       data: {
         vendorId: vendor.id,
+        categoryId,
         title: data.title,
         slug,
         description: data.description,

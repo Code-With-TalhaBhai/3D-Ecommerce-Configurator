@@ -9,6 +9,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Loading & Navigation Feedback Pass (cross-sprint) — complete
 - Vendor-Gated Product Approval (cross-sprint) — complete
 - Listing Thumbnail Pipeline (cross-sprint, performance) — complete
+- Product Categories (cross-sprint) — complete
 
 ## Current Goal
 - Sprint 11-12 (Testing & Polish: E2E tests, performance benchmarking, accessibility audit, deployment) — not started
@@ -184,6 +185,20 @@ Goal: stop loading WebGL + parsing GLB binaries on listing pages. `/products` wa
   - **Slow-connection note relocation**: the "Slow connection — model may take a moment" amber pill that previously rendered on top of the empty viewer is now folded into the loader's hint line (so it appears *during* the load when it matters); the original corner pill still appears post-load if `navigator.connection.effectiveType` is slow.
   - Bonus fix in the same change: `mountedAt` (used for the dev-mode `first frame: X ms` corner readout) was memoised with `[]` deps, so navigating between products kept the original mount timestamp and reported stale times. Switched to `[product.id]` so the timing resets per product.
 
+### Product Categories (cross-sprint)
+
+Goal: let vendors classify each product under a category and let customers filter the marketplace by it. Admins manage the category list.
+
+- Feature 88: Schema + migration — New `Category` model (`id`, `name` unique, `slug` unique, `createdAt`, `products[]`). `Product` gains a **required** `categoryId` with a `Restrict` FK + `@@index([categoryId])`. Migration `20260712000000_add_categories` creates the table, seeds a default **"Others"** category at fixed id `cat_others_default`, adds the column nullable, backfills every existing product (68 rows) to Others, then flips the column to `NOT NULL`. Applied to remote Supabase via MCP (local network can't reach the pooler); the `_prisma_migrations` row was inserted with the file's real checksum so `prisma migrate deploy` stays consistent.
+- Feature 89: Category helpers — `lib/categories.ts` (`server-only`) exports `OTHERS_CATEGORY_SLUG`, `slugifyCategory`, `getOthersCategoryId()` (safety-net create if the seed row ever vanishes), and `resolveCategoryId(id?)` (validates a caller-supplied id, falls back to Others when missing/stale).
+- Feature 90: Admin Categories page — `/admin/categories` (`page.tsx` + `category-form.tsx` + `actions.ts`). Lists all categories with product counts; `createCategory` validates name (2–40 chars, case-insensitive uniqueness, auto-slug); `deleteCategory` refuses the default "Others", and otherwise reassigns the category's products to Others in a `$transaction` before deleting (so the Restrict FK never blocks). "Categories" tab added to the admin nav.
+- Feature 91: Vendor upload category select — `new/page.tsx` fetches categories and passes them to `NewProductForm`, which renders a required `<select>` defaulting to **Others**. The chosen `categoryId` rides along in the `/complete` payload; the complete route validates it via `resolveCategoryId` and sets it at `product.create` time (falls back to Others if absent/stale).
+- Feature 92: Marketplace category filter — `/products` accepts a `?category=<slug>` param, filters via `where.category = { slug }`, and fetches the category list for the `SearchBar`. The search bar gains a category `<select>` (apply-on-change for snappy browsing) alongside the existing search + price filters; "All categories" clears it.
+
+### Vendor Product Edit (cross-sprint)
+
+- Feature 93: Edit product metadata — New route `/vendor/products/[id]/edit` (`page.tsx` + `edit-product-form.tsx`) lets a vendor edit an existing listing's **title, description, price, stock, and category**. The GLB model, variants, and thumbnail are intentionally **not** editable (re-uploading a model has compression/storage implications — still deferred). `updateProduct` server action in `app/(vendor)/vendor/products/actions.ts` re-uses the same Zod validation shape as upload, checks vendor ownership (admins bypass), resolves the category via `resolveCategoryId` (falls back to Others), and updates the row. Slug is kept stable (public URL / SEO) and **status is left untouched** — an approved vendor's edits stay live, a pending/rejected product keeps its state. An "Edit" link was added next to Delete on each `/vendor/products` row.
+
 ## In Progress
 
 - None.
@@ -197,7 +212,7 @@ Goal: stop loading WebGL + parsing GLB binaries on listing pages. `/products` wa
 - Deployment hardening: Vercel project config, `images.remotePatterns` for the S3 / CDN host so we can move product imagery to `next/image`, production env-var wiring for AWS + Stripe + Supabase.
 
 ### Backlog / Not Yet Slotted
-- Vendor product edit (only delete shipped in Sprint 9-10 — re-uploading a GLB has compression + storage implications that need a thought-out flow).
+- ~~Vendor product edit (only delete shipped in Sprint 9-10 — re-uploading a GLB has compression + storage implications that need a thought-out flow).~~ — **Shipped (Feature 93).** Vendors can edit title/description/price/stock/category from `/vendor/products/[id]/edit`. GLB re-upload is still deferred (compression/storage flow).
 - Vendor fulfilment UI: vendor-side controls to flip Order status to SHIPPED / DELIVERED for their own line items. Admin `/admin/orders` is read-only.
 - ~~Hard gate on vendor approval (currently a trust badge; doesn't actually block products going live).~~ — **Shipped 2026-05-25.** Vendor approval now auto-publishes the vendor's uploads (Feature 77-80). PENDING products only exist for unapproved vendors; admin can revoke an APPROVED product at any time.
 - ~~Product thumbnail generation on upload (headless GL or Puppeteer render pass to a 512×512 PNG, stored alongside the GLB and saved into `Product.thumbnailUrl`).~~ — **Shipped 2026-05-26** as the Listing Thumbnail Pipeline (Features 81-86). Implementation chose client-side R3F capture over server-side headless rendering — no Puppeteer dependency, no headless-GL binary, no Vercel cold-start penalty. Existing pre-pipeline products will keep showing the icon placeholder until they're re-uploaded.

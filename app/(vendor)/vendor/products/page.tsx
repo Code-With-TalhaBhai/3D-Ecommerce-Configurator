@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Pencil } from "lucide-react";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -127,7 +128,13 @@ export default async function VendorProductsPage() {
                     {p.createdAt.toLocaleDateString()}
                   </span>
                 </div>
-                <div className="flex sm:justify-end">
+                <div className="flex items-center gap-2 sm:justify-end">
+                  <Link
+                    href={`/vendor/products/${p.id}/edit`}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Link>
                   <ProductActions
                     productId={p.id}
                     hasOrders={p._count.orderItems > 0}

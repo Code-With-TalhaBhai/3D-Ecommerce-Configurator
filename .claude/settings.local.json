@@ -12,7 +12,14 @@
       "Bash(node -e \"const c=require\\('@gltf-transform/core'\\);const e=require\\('@gltf-transform/extensions'\\);const f=require\\('@gltf-transform/functions'\\);const d=require\\('draco3dgltf'\\);console.log\\('core:',Object.keys\\(c\\).filter\\(k=>k.includes\\('IO'\\)||k.includes\\('Doc'\\)\\)\\);console.log\\('extensions Draco:',!!e.KHRDracoMeshCompression\\);console.log\\('functions draco:',typeof f.draco\\);console.log\\('draco3dgltf:',Object.keys\\(d\\)\\);\")",
       "Bash(node -e \"const d=require\\('draco3dgltf'\\);console.log\\(Object.keys\\(d\\)\\);console.log\\(typeof d.createEncoderModule\\);\")",
       "Bash(node -e ' *)",
-      "PowerShell(npx tsc --noEmit)"
+      "PowerShell(npx tsc --noEmit)",
+      "PowerShell(npx prisma migrate deploy)",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__execute_sql",
+      "PowerShell(\\(Get-FileHash -Algorithm SHA256 \"prisma\\\\migrations\\\\20260712000000_add_categories\\\\migration.sql\"\\).Hash.ToLower\\(\\))",
+      "mcp__supabase__apply_migration",
+      "PowerShell(npx prisma generate)",
+      "PowerShell(npx next typegen 2>&1)"
     ],
     "defaultMode": "acceptEdits"
   },
