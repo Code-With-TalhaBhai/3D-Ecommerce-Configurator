@@ -9,6 +9,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Loading & Navigation Feedback Pass (cross-sprint) — complete
 - Vendor-Gated Product Approval (cross-sprint) — complete
 - Listing Thumbnail Pipeline (cross-sprint, performance) — complete
+- Product Categories (cross-sprint) — complete
 
 ## Current Goal
 - Sprint 11-12 (Testing & Polish: E2E tests, performance benchmarking, accessibility audit, deployment) — not started
@@ -183,6 +184,16 @@ Goal: stop loading WebGL + parsing GLB binaries on listing pages. `/products` wa
   - **Two-phase coverage**: the same `<ViewerLoader>` is also used as the `dynamic(... { loading })` fallback for `ConfigurableViewer`, so the JS-chunk-loading phase and the GLB-fetching phase share one continuous visual — no jarring transition between "Loading viewer" text and the model appearing.
   - **Slow-connection note relocation**: the "Slow connection — model may take a moment" amber pill that previously rendered on top of the empty viewer is now folded into the loader's hint line (so it appears *during* the load when it matters); the original corner pill still appears post-load if `navigator.connection.effectiveType` is slow.
   - Bonus fix in the same change: `mountedAt` (used for the dev-mode `first frame: X ms` corner readout) was memoised with `[]` deps, so navigating between products kept the original mount timestamp and reported stale times. Switched to `[product.id]` so the timing resets per product.
+
+### Product Categories (cross-sprint)
+
+Goal: let vendors classify each product under a category and let customers filter the marketplace by it. Admins manage the category list.
+
+- Feature 88: Schema + migration — New `Category` model (`id`, `name` unique, `slug` unique, `createdAt`, `products[]`). `Product` gains a **required** `categoryId` with a `Restrict` FK + `@@index([categoryId])`. Migration `20260712000000_add_categories` creates the table, seeds a default **"Others"** category at fixed id `cat_others_default`, adds the column nullable, backfills every existing product (68 rows) to Others, then flips the column to `NOT NULL`. Applied to remote Supabase via MCP (local network can't reach the pooler); the `_prisma_migrations` row was inserted with the file's real checksum so `prisma migrate deploy` stays consistent.
+- Feature 89: Category helpers — `lib/categories.ts` (`server-only`) exports `OTHERS_CATEGORY_SLUG`, `slugifyCategory`, `getOthersCategoryId()` (safety-net create if the seed row ever vanishes), and `resolveCategoryId(id?)` (validates a caller-supplied id, falls back to Others when missing/stale).
+- Feature 90: Admin Categories page — `/admin/categories` (`page.tsx` + `category-form.tsx` + `actions.ts`). Lists all categories with product counts; `createCategory` validates name (2–40 chars, case-insensitive uniqueness, auto-slug); `deleteCategory` refuses the default "Others", and otherwise reassigns the category's products to Others in a `$transaction` before deleting (so the Restrict FK never blocks). "Categories" tab added to the admin nav.
+- Feature 91: Vendor upload category select — `new/page.tsx` fetches categories and passes them to `NewProductForm`, which renders a required `<select>` defaulting to **Others**. The chosen `categoryId` rides along in the `/complete` payload; the complete route validates it via `resolveCategoryId` and sets it at `product.create` time (falls back to Others if absent/stale).
+- Feature 92: Marketplace category filter — `/products` accepts a `?category=<slug>` param, filters via `where.category = { slug }`, and fetches the category list for the `SearchBar`. The search bar gains a category `<select>` (apply-on-change for snappy browsing) alongside the existing search + price filters; "All categories" clears it.
 
 ## In Progress
 

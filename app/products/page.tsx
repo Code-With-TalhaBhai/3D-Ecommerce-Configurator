@@ -16,6 +16,7 @@ type Params = Promise<{
   q?: string;
   min?: string;
   max?: string;
+  category?: string;
 }>;
 
 function parsePrice(v: string | undefined): number | null {
@@ -26,9 +27,10 @@ function parsePrice(v: string | undefined): number | null {
 
 // Public listing pulls only APPROVED products (per AGENTS §3.7).
 export default async function ProductsPage({ searchParams }: { searchParams: Params }) {
-  const { q, min, max } = await searchParams;
+  const { q, min, max, category } = await searchParams;
   const minPrice = parsePrice(min);
   const maxPrice = parsePrice(max);
+  const categorySlug = category && category.trim() ? category.trim() : null;
 
   const where: Prisma.ProductWhereInput = { status: "APPROVED" };
   if (q && q.trim()) {
@@ -44,18 +46,27 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
       ...(maxPrice !== null ? { lte: maxPrice } : {}),
     };
   }
+  if (categorySlug) {
+    where.category = { slug: categorySlug };
+  }
 
-  const products = await prisma.product.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: 60,
-    include: {
-      vendor: { select: { storeName: true, slug: true } },
-      _count: { select: { variants: true } },
-    },
-  });
+  const [products, categories] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 60,
+      include: {
+        vendor: { select: { storeName: true, slug: true } },
+        _count: { select: { variants: true } },
+      },
+    }),
+    prisma.category.findMany({
+      orderBy: { name: "asc" },
+      select: { name: true, slug: true },
+    }),
+  ]);
 
-  const hasFilters = Boolean(q || min || max);
+  const hasFilters = Boolean(q || min || max || categorySlug);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-12">
@@ -72,7 +83,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
       </header>
 
       <div className="mb-8">
-        <SearchBar />
+        <SearchBar categories={categories} />
       </div>
 
       {products.length === 0 ? (

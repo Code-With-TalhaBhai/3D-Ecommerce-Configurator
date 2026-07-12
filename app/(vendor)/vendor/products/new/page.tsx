@@ -16,6 +16,11 @@ export default async function NewProductPage() {
   });
   if (!vendor) redirect("/vendor/onboarding");
 
+  const categories = await prisma.category.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, slug: true },
+  });
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <div className="mb-8">
@@ -27,7 +32,7 @@ export default async function NewProductPage() {
           Draco-compressed on the server and reviewed by an admin before going live.
         </p>
       </div>
-      <NewProductForm />
+      <NewProductForm categories={categories} />
     </div>
   );
 }

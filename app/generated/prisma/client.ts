@@ -72,6 +72,11 @@ export type Vendor = Prisma.VendorModel
  */
 export type Product = Prisma.ProductModel
 /**
+ * Model Category
+ * 
+ */
+export type Category = Prisma.CategoryModel
+/**
  * Model ProductVariant
  * 
  */
