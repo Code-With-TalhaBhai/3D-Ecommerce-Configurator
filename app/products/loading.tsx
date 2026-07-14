@@ -1,7 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Skeleton mirrors the products grid layout — header block, search bar, then
-// a 4-column card grid. PublicHeader (from layout) keeps rendering above.
+// Skeleton mirrors the products grid layout — header block, search bar,
+// category chips, then a 4-column card grid. PublicHeader (from layout) keeps
+// rendering above.
 export default function Loading() {
   return (
     <div className="mx-auto max-w-7xl px-6 py-12">
@@ -11,8 +12,13 @@ export default function Loading() {
         <Skeleton className="h-4 w-full max-w-xl" />
       </header>
 
-      <div className="mb-8">
+      <div className="mb-8 flex flex-col gap-4">
         <Skeleton className="h-10 w-full max-w-2xl rounded-lg" />
+        <div className="flex items-center gap-2">
+          {["w-28", "w-20", "w-24", "w-16", "w-24", "w-20"].map((w, i) => (
+            <Skeleton key={i} className={`h-8 rounded-full ${w}`} />
+          ))}
+        </div>
       </div>
 
       <Skeleton className="mb-5 h-3 w-20" />

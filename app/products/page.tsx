@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, PackageOpen, SearchX } from "lucide-react";
 
+import { OTHERS_CATEGORY_SLUG } from "@/lib/categories";
 import { prisma } from "@/lib/prisma";
 import { toCdnUrl } from "@/lib/storage/cdn";
 import { ProductThumb } from "@/components/viewer/product-thumb";
+import { CategoryChips } from "./category-chips";
 import { SearchBar } from "./search-bar";
 import type { Prisma } from "@/app/generated/prisma/client";
 
@@ -84,6 +86,13 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
     }),
   ]);
 
+  // "Others" is the catch-all bucket, so it reads last in the chip row no matter
+  // where it falls alphabetically.
+  const orderedCategories = [
+    ...categories.filter((c) => c.slug !== OTHERS_CATEGORY_SLUG),
+    ...categories.filter((c) => c.slug === OTHERS_CATEGORY_SLUG),
+  ];
+
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   // Clamp so a stale/hand-edited ?page= past the end still lands on the last page.
   const safePage = Math.min(currentPage, totalPages);
@@ -118,8 +127,9 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
         </p>
       </header>
 
-      <div className="mb-8">
-        <SearchBar categories={categories} />
+      <div className="mb-8 flex flex-col gap-4">
+        <SearchBar />
+        <CategoryChips categories={orderedCategories} />
       </div>
 
       {products.length === 0 ? (
