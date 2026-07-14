@@ -1240,3 +1240,172 @@ The existing color effect (`mat.color.set(viewer.color)` / restore from snapshot
 **Takeaway**
 
 In PBR, `material.color` is a *multiplier over the albedo texture*, not the surface color. Any "recolor this product" feature has to account for the base-color map — either by removing it (solid repaint, done here) or by compositing the tint into the texture sample in a custom shader (full-fidelity recolor, much more work). A recolor that only sets `material.color` will silently look correct on untextured models and wrong on every textured one — the most deceptive kind of bug because it passes the first test you try.
+
+---
+
+## Issue 20 — `/products` silently hides products past the 60th; no pagination
+
+**Sprint:** 7–8 — *Marketplace core* (public product listings, search & filtering).
+
+**Symptom**
+
+Not every APPROVED product shows on the public marketplace at `/products`. As the catalog grew, older listings simply stopped appearing — with no indication that more existed and no way for a customer to reach them.
+
+**Root cause**
+
+[app/products/page.tsx](../app/products/page.tsx) fetched with a hard `take: 60` and no `skip`, rendering the count of the *returned rows* (`{products.length} results`) rather than the total match count:
+
+```ts
+const products = await prisma.product.findMany({
+  where,
+  orderBy: { createdAt: "desc" },
+  take: 60,               // ← hard ceiling, no pagination
+  include: { ... },
+});
+// ...
+<p>{products.length} results</p>   // ← counts the page, not the catalog
+```
+
+Because the order is `createdAt: "desc"`, the 60 most-recent APPROVED products always won and everything older fell off the end. This isn't the "PENDING isn't APPROVED" gate from Issue 6 (those products are genuinely hidden by design) — these were fully-approved, live products the query just never reached. The result count also lied: it showed "60 results" whether the true match count was 60 or 600.
+
+**Fix**
+
+Replaced the fixed `take: 60` with true offset pagination at **20 products per page** (`PAGE_SIZE = 20`), driven by a new `?page=` search param:
+
+1. **Total count drives the UI.** A `prisma.product.count({ where })` runs alongside the category fetch in the existing `Promise.all`, so `totalPages = ceil(totalCount / PAGE_SIZE)` and the result line now reads `Showing 1–20 of N results` instead of the misleading page-length count.
+2. **Offset query.** The listing `findMany` gained `skip: (safePage - 1) * PAGE_SIZE` + `take: PAGE_SIZE`. The same `where` clause (status + `q` + price range + category) is shared between the `count` and the `findMany`, so pagination composes cleanly with every existing filter.
+3. **Page clamping.** `parsePage()` coerces a missing / non-integer / `< 1` param to page 1; `safePage = min(currentPage, totalPages)` means a hand-edited or stale `?page=999` lands on the last page instead of an empty grid.
+4. **Prev / Next controls.** A `<nav aria-label="Pagination">` renders below the grid (only when `totalPages > 1`) with `Prev` / `Next` links and a "Page X of Y" indicator. Both links go through `pageHref()`, which rebuilds the querystring from the active filters and only appends `page` when `> 1` (so page 1 stays on the canonical `/products?...` URL). At the first/last page the corresponding control renders as a disabled `<span>` rather than a link. `rel="prev"` / `rel="next"` added for crawler hints.
+5. **Filter changes reset to page 1.** [app/products/search-bar.tsx](../app/products/search-bar.tsx) needed no change — its `buildQuery()` never carried `page`, so applying a search / price / category filter navigates to a page-less URL, which `parsePage()` reads as page 1. This is the correct UX: changing filters shouldn't strand the user on a page number that no longer exists.
+
+```ts
+// app/products/page.tsx
+const PAGE_SIZE = 20;
+const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+const safePage = Math.min(currentPage, totalPages);
+const products = await prisma.product.findMany({
+  where,
+  orderBy: { createdAt: "desc" },
+  skip: (safePage - 1) * PAGE_SIZE,
+  take: PAGE_SIZE,
+  include: { vendor: { select: { storeName: true, slug: true } }, _count: { select: { variants: true } } },
+});
+```
+
+**Why offset pagination over cursor / infinite scroll**
+
+- **Offset** is the least code for a filtered, sortable catalog and gives shareable, back-button-friendly `?page=N` URLs — a marketplace expectation. At MVP catalog sizes the `OFFSET` cost is negligible.
+- **Cursor** pagination is faster on very large tables but doesn't support "jump to page 5" and complicates the multi-filter `where`. Worth revisiting only if the catalog reaches tens of thousands of rows.
+- **Infinite scroll** would pull the listing back into a client component and lose the RSC/SEO benefits the page currently has. Deferred.
+
+**Verification**
+
+Confirmed against the live database — at the time of the fix the catalog held **67 APPROVED products**, so the old `take: 60` was hiding exactly 7 live listings:
+
+```
+count(APPROVED) = 67
+page 4 (OFFSET 60 LIMIT 20) returned 7 rows:
+  - Custom / Limited Edition
+  - Custom / Limited Edition
+  - brown loafers
+  - leather loafers
+  - Sneakers
+  - Dining Table
+  - Shoes
+```
+
+Those 7 are precisely the products that were unreachable before. Also verified:
+
+- With > 20 approved products: page shows the first 20, "Page 1 of N", Next enabled, Prev disabled.
+- `?page=2` shows products 21–40 and the count reads `Showing 21–40 of N results`.
+- `?page=99` (past the end) clamps to the last page.
+- Applying any filter (search / price / category) returns to page 1 and paginates within the filtered set.
+- `npx tsc --noEmit` — green.
+
+**Takeaway**
+
+A `take: N` with no `skip` isn't "show the first N" — on a `desc` sort it's "permanently hide everything older than the newest N," and pairing it with `results.length` as the count hides the truncation from the UI too. Any list that can outgrow its first page needs either pagination or an explicit, honest "showing latest N of M" affordance — never a silent cap.
+
+---
+
+## Issue 21 — `Can't reach database server at aws-1-ap-northeast-1.pooler.supabase.com` (intermittent, local dev only)
+
+**Sprint:** Cross-cutting — *local development environment*. Not an application defect.
+
+**Symptom**
+
+Pages that query the database fail intermittently in `next dev` with a Prisma connection error. It surfaces at whichever query runs first — e.g. on `/products` after the Issue 20 pagination work:
+
+```
+Invalid `prisma.product.count()` invocation in
+D:\…\.next\dev\server\chunks\ssr\[root-of-the-server]__09g9omp._.js:249:137
+
+Can't reach database server at aws-1-ap-northeast-1.pooler.supabase.com
+app\products\page.tsx (80:20)
+```
+
+Reloading sometimes works and sometimes doesn't, with no code change in between.
+
+**This is not a code bug — and the stack trace is misleading**
+
+The named query in the trace (`prisma.product.count()` here) is simply *the first query in the `Promise.all`*. A connection failure happens before any SQL is sent, so Prisma attributes it to whichever call it happened to be opening a connection for. Swapping the query order just renames the error. Anything that touches Prisma will fail the same way.
+
+**Root cause — flaky DNS on the local network, not Supabase**
+
+The Supabase project is healthy and the pooler is reachable; the hostname just doesn't resolve reliably from this machine. Evidence gathered while diagnosing:
+
+| Check | Result |
+|---|---|
+| Supabase project `izlcfkohtsxwthtpurgi` status | `ACTIVE_HEALTHY` |
+| `Test-NetConnection … -Port 6543` | `TcpTestSucceeded: True` (once resolved) |
+| `Resolve-DnsName` via router `192.168.10.1` (configured resolver) | **2 / 5 succeeded** |
+| `Resolve-DnsName … -Server 8.8.8.8` | **3 / 3 succeeded** |
+| Node `dns.lookup()` (what `pg` / the Prisma adapter use) | `ENOTFOUND` after ~5–6 s on failures; ~11–60 ms when cached |
+
+So: the configured DNS server (the router at `192.168.10.1`) fails to resolve `aws-1-ap-northeast-1.pooler.supabase.com` roughly **60 % of the time**, hanging ~5–6 seconds before returning `ENOTFOUND`. Public resolvers answer it every time. Once the name resolves, the pooler connects and queries run normally (a full `count` + paginated `findMany` completed in 1.4 s).
+
+This is the same underlying problem as the note already recorded in [progress-update.md](./progress-update.md) — *"Applied to remote Supabase via MCP (local network can't reach the pooler)"* — which is why schema migrations had to be pushed through the Supabase MCP rather than `prisma migrate deploy`. The MCP path works because it goes over HTTPS to `api.supabase.com`, a different hostname that resolves fine.
+
+**Fix — point the machine at a public resolver**
+
+In an **elevated** PowerShell:
+
+```powershell
+Set-DnsClientServerAddress -InterfaceAlias "Wi-Fi" -ServerAddresses 8.8.8.8,1.1.1.1
+Clear-DnsClientCache
+```
+
+Revert to DHCP / router-provided DNS with:
+
+```powershell
+Set-DnsClientServerAddress -InterfaceAlias "Wi-Fi" -ResetServerAddresses
+```
+
+**Why not "fix" it in application code**
+
+Tempting but wrong workarounds, and why they were rejected:
+
+- *Retry loop / exponential backoff around Prisma calls* — masks a 5–6 s DNS stall behind a slower page load, and every RSC that touches the DB would need it. The failure isn't transient-by-nature (like a pooler restart); it's a broken resolver that will keep failing.
+- *Pin the IP in `C:\Windows\System32\drivers\etc\hosts`* — the pooler resolves to a rotating set of AWS IPs (`13.114.6.6`, `57.182.231.186`, `18.176.230.146` observed). Pinning one guarantees a hard outage the day AWS rotates it.
+- *Switch `DATABASE_URL` to the direct `db.<ref>.supabase.co` host* — different hostname, same resolver, same coin-flip. Also gives up pgbouncer pooling.
+
+The resolver is the broken component; fix it there.
+
+**Diagnosing a recurrence**
+
+Confirm whether it's DNS before touching any code:
+
+```powershell
+# Does the name resolve at all, and via whom?
+1..5 | ForEach-Object { Resolve-DnsName aws-1-ap-northeast-1.pooler.supabase.com -Type A -ErrorAction SilentlyContinue }
+Resolve-DnsName aws-1-ap-northeast-1.pooler.supabase.com -Type A -Server 8.8.8.8
+
+# Is the pooler actually reachable once resolved?
+Test-NetConnection aws-1-ap-northeast-1.pooler.supabase.com -Port 6543
+```
+
+`ENOTFOUND` / `getaddrinfo` ⇒ DNS. `ETIMEDOUT` / `ECONNREFUSED` ⇒ genuinely network or Supabase-side (check project status — a paused free-tier project presents as a connection failure too).
+
+**Takeaway**
+
+`Can't reach database server` is a *transport* error, and the query Prisma names in the stack trace is coincidental — don't start by reading the query. Walk the layers outward: is the project up → does the hostname resolve → does the port connect → does the query run. Here, three of the four layers were fine and the app code was never at fault; a 60 %-failure-rate resolver had been quietly taxing the whole project long enough that a workaround for it (migrating via MCP) was already baked into the docs as though it were normal.

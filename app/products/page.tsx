@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PackageOpen, SearchX } from "lucide-react";
+import { ChevronLeft, ChevronRight, PackageOpen, SearchX } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { toCdnUrl } from "@/lib/storage/cdn";
@@ -12,11 +12,15 @@ export const metadata = {
   description: "Browse 3D-configurable products. Rotate, zoom, and customize before you buy.",
 };
 
+// Products per page. Older listings beyond this window are reachable via pagination.
+const PAGE_SIZE = 20;
+
 type Params = Promise<{
   q?: string;
   min?: string;
   max?: string;
   category?: string;
+  page?: string;
 }>;
 
 function parsePrice(v: string | undefined): number | null {
@@ -25,12 +29,34 @@ function parsePrice(v: string | undefined): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+function parsePage(v: string | undefined): number {
+  if (!v) return 1;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+
+// Build a querystring that preserves the active filters while overriding the page.
+function pageHref(
+  base: { q?: string; min?: string; max?: string; category?: string },
+  page: number,
+): string {
+  const next = new URLSearchParams();
+  if (base.q) next.set("q", base.q);
+  if (base.min) next.set("min", base.min);
+  if (base.max) next.set("max", base.max);
+  if (base.category) next.set("category", base.category);
+  if (page > 1) next.set("page", String(page));
+  const qs = next.toString();
+  return qs ? `/products?${qs}` : "/products";
+}
+
 // Public listing pulls only APPROVED products (per AGENTS §3.7).
 export default async function ProductsPage({ searchParams }: { searchParams: Params }) {
-  const { q, min, max, category } = await searchParams;
+  const { q, min, max, category, page } = await searchParams;
   const minPrice = parsePrice(min);
   const maxPrice = parsePrice(max);
   const categorySlug = category && category.trim() ? category.trim() : null;
+  const currentPage = parsePage(page);
 
   const where: Prisma.ProductWhereInput = { status: "APPROVED" };
   if (q && q.trim()) {
@@ -50,23 +76,33 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
     where.category = { slug: categorySlug };
   }
 
-  const [products, categories] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: 60,
-      include: {
-        vendor: { select: { storeName: true, slug: true } },
-        _count: { select: { variants: true } },
-      },
-    }),
+  const [totalCount, categories] = await Promise.all([
+    prisma.product.count({ where }),
     prisma.category.findMany({
       orderBy: { name: "asc" },
       select: { name: true, slug: true },
     }),
   ]);
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  // Clamp so a stale/hand-edited ?page= past the end still lands on the last page.
+  const safePage = Math.min(currentPage, totalPages);
+
+  const products = await prisma.product.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip: (safePage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    include: {
+      vendor: { select: { storeName: true, slug: true } },
+      _count: { select: { variants: true } },
+    },
+  });
+
   const hasFilters = Boolean(q || min || max || categorySlug);
+  const hrefBase = { q, min, max, category: categorySlug ?? undefined };
+  const rangeStart = totalCount === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = (safePage - 1) * PAGE_SIZE + products.length;
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-12">
@@ -103,7 +139,9 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
       ) : (
         <>
           <p className="mb-5 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-            {products.length} result{products.length === 1 ? "" : "s"}
+            {totalCount === 1
+              ? "1 result"
+              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} results`}
           </p>
           <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((p) => (
@@ -145,6 +183,49 @@ export default async function ProductsPage({ searchParams }: { searchParams: Par
               </li>
             ))}
           </ul>
+
+          {totalPages > 1 && (
+            <nav
+              aria-label="Pagination"
+              className="mt-10 flex items-center justify-center gap-2"
+            >
+              {safePage > 1 ? (
+                <Link
+                  href={pageHref(hrefBase, safePage - 1)}
+                  rel="prev"
+                  className="inline-flex h-9 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Prev
+                </Link>
+              ) : (
+                <span className="inline-flex h-9 cursor-not-allowed items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-600">
+                  <ChevronLeft className="h-4 w-4" />
+                  Prev
+                </span>
+              )}
+
+              <span className="px-2 text-sm tabular-nums text-zinc-600 dark:text-zinc-400">
+                Page {safePage} of {totalPages}
+              </span>
+
+              {safePage < totalPages ? (
+                <Link
+                  href={pageHref(hrefBase, safePage + 1)}
+                  rel="next"
+                  className="inline-flex h-9 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              ) : (
+                <span className="inline-flex h-9 cursor-not-allowed items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-600">
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </span>
+              )}
+            </nav>
+          )}
         </>
       )}
     </div>
