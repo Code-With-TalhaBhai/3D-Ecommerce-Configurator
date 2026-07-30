@@ -26,7 +26,17 @@
       "PowerShell(1..5 | ForEach-Object { node -e \"const d=require\\('dns'\\);const t=Date.now\\(\\);d.lookup\\('aws-1-ap-northeast-1.pooler.supabase.com',\\(e,a\\)=>console.log\\(e?\\('FAILED '+e.code+' in '+\\(Date.now\\(\\)-t\\)+'ms'\\):\\('OK '+a+' in '+\\(Date.now\\(\\)-t\\)+'ms'\\)\\)\\)\" })",
       "PowerShell(Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object { $_.ServerAddresses } | Select-Object InterfaceAlias, ServerAddresses | Format-Table -AutoSize)",
       "PowerShell(\"--- via 8.8.8.8 ---\"; 1..3 | ForEach-Object { $r = Resolve-DnsName -Name aws-1-ap-northeast-1.pooler.supabase.com -Type A -Server 8.8.8.8 -ErrorAction SilentlyContinue; if \\($r\\) { \"try $_`: OK\" } else { \"try $_`: FAILED\" } })",
-      "PowerShell(1..6 | ForEach-Object { $out = node db-probe.mjs 2>&1 | Out-String; if \\($out -notmatch \"ENOTFOUND\"\\) { $out; break } else { \"attempt $_`: DNS miss, retrying...\" } })"
+      "PowerShell(1..6 | ForEach-Object { $out = node db-probe.mjs 2>&1 | Out-String; if \\($out -notmatch \"ENOTFOUND\"\\) { $out; break } else { \"attempt $_`: DNS miss, retrying...\" } })",
+      "PowerShell(npx eslint components/viewer/configurable-viewer.tsx components/viewer/controls-panel.tsx store/slices/viewerSlice.ts)",
+      "Bash(tasklist)",
+      "Bash(netstat -ano)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_click",
+      "Bash(git -C \"d:/code_apps/final-year-project\" status --porcelain)"
     ],
     "defaultMode": "acceptEdits"
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
+import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import {
   Bounds,
   Center,
@@ -11,8 +11,15 @@ import {
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { useAppSelector } from "@/store/hooks";
-import type { Finish, LightingPreset } from "@/store/slices/viewerSlice";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  highlightPart,
+  selectPart,
+  setParts,
+  type Finish,
+  type LightingPreset,
+  type ViewerPart,
+} from "@/store/slices/viewerSlice";
 
 type ConfigurableViewerProps = {
   src: string;
@@ -31,7 +38,20 @@ type Original = {
   roughness: number;
   metalness: number;
   clearcoat: number;
+  emissive: THREE.Color;
+  emissiveIntensity: number;
 };
+
+// "Left_Sole.001" → "Left sole"
+// Blender auto-suffixes a duplicated data-block's name with ".001", ".002",
+// etc. when the artist doesn't rename the copy — strip that dedup suffix
+// before humanizing so it doesn't leak into the customer-facing label.
+function humanizeLabel(raw: string) {
+  const withoutDedupSuffix = raw.replace(/\.\d{3}$/, "");
+  const cleaned = withoutDedupSuffix.replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return raw;
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
 
 // Customer-facing finishes → physical-material numeric values.
 // `null` means "leave the original material untouched".
@@ -89,13 +109,23 @@ function ConfigurableModel({
 }) {
   const gltf = useGLTF(src);
   const viewer = useAppSelector((s) => s.viewer);
+  const dispatch = useAppDispatch();
   // Per-material originals so we can restore color / map / finish when the
   // user picks "Default" / "Original".
   const originalsRef = useRef<Map<THREE.MeshPhysicalMaterial, Original>>(new Map());
+  // material → part id, so pointer events and the color effect can resolve
+  // which selectable "part" a material belongs to.
+  const materialPartRef = useRef<Map<THREE.MeshPhysicalMaterial, string>>(new Map());
 
   // Upgrade every cloned material to MeshPhysicalMaterial (superset of Standard
   // — supports the clearcoat lobe used by Glossy / Metallic / Polished finishes).
+  // While traversing, group materials into customer-facing "parts" keyed by the
+  // GLB material name (falling back to the mesh name) — two meshes sharing a
+  // material name count as one part, matching how artists author GLTFs.
   useEffect(() => {
+    const partsFound = new Map<string, ViewerPart>();
+    materialPartRef.current = new Map();
+
     gltf.scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh) || !obj.material) return;
       const sourceMaterials = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -115,7 +145,21 @@ function ConfigurableModel({
         return next;
       });
 
-      for (const mat of upgraded) {
+      upgraded.forEach((mat, i) => {
+        const rawName = (sourceMaterials[i]?.name || obj.name || "").trim();
+        // Name-based keys stay stable across re-traversals so partColors
+        // keyed on them survive; anonymous materials fall back to mesh uuid.
+        const key = rawName ? `name:${rawName.toLowerCase()}` : `mesh:${obj.uuid}:${i}`;
+        let part = partsFound.get(key);
+        if (!part) {
+          part = {
+            id: key,
+            label: rawName ? humanizeLabel(rawName) : `Part ${partsFound.size + 1}`,
+          };
+          partsFound.set(key, part);
+        }
+        materialPartRef.current.set(mat, part.id);
+
         if (!originalsRef.current.has(mat)) {
           originalsRef.current.set(mat, {
             color: mat.color ? mat.color.clone() : null,
@@ -123,12 +167,15 @@ function ConfigurableModel({
             roughness: mat.roughness,
             metalness: mat.metalness,
             clearcoat: mat.clearcoat,
+            emissive: mat.emissive.clone(),
+            emissiveIntensity: mat.emissiveIntensity,
           });
         }
-      }
+      });
 
       obj.material = Array.isArray(obj.material) ? upgraded : upgraded[0];
     });
+    dispatch(setParts([...partsFound.values()]));
     onFirstFrame?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gltf.scene]);
@@ -147,15 +194,22 @@ function ConfigurableModel({
     });
   };
 
-  // --- Apply color (override or restore) ---
+  // Per-part override wins over the whole-product color for that material.
+  const effectiveColor = (mat: THREE.MeshPhysicalMaterial): string | null => {
+    const partId = materialPartRef.current.get(mat);
+    return (partId ? viewer.partColors[partId] : undefined) ?? viewer.color;
+  };
+
+  // --- Apply color (per-part override → whole-product override → restore) ---
   useEffect(() => {
     eachMaterial((mat, originals) => {
       if (!mat.color) return;
-      if (viewer.color) mat.color.set(viewer.color);
+      const override = effectiveColor(mat);
+      if (override) mat.color.set(override);
       else if (originals?.color) mat.color.copy(originals.color);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer.color, gltf.scene]);
+  }, [viewer.color, viewer.partColors, gltf.scene]);
 
   // --- Apply finish (preset → roughness/metalness/clearcoat, or restore) ---
   useEffect(() => {
@@ -189,7 +243,7 @@ function ConfigurableModel({
       eachMaterial((mat, originals) => {
         let next: THREE.Texture | null;
         if (map) next = map;
-        else if (viewer.color) next = null;
+        else if (effectiveColor(mat)) next = null;
         else next = originals?.map ?? null;
         mat.map = next;
         if (next) {
@@ -229,9 +283,77 @@ function ConfigurableModel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer.textureUrl, viewer.color, gltf.scene]);
+  }, [viewer.textureUrl, viewer.color, viewer.partColors, gltf.scene]);
 
-  return <primitive object={gltf.scene} />;
+  // --- Highlight the hovered part (emissive glow, restored on leave) ---
+  useEffect(() => {
+    eachMaterial((mat, originals) => {
+      const partId = materialPartRef.current.get(mat);
+      if (viewer.highlightedPartId && partId === viewer.highlightedPartId) {
+        mat.emissive.set("#3b82f6");
+        mat.emissiveIntensity = 0.35;
+      } else if (originals) {
+        mat.emissive.copy(originals.emissive);
+        mat.emissiveIntensity = originals.emissiveIntensity;
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer.highlightedPartId, gltf.scene]);
+
+  // Reset the cursor if we unmount mid-hover.
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = "";
+    };
+  }, []);
+
+  // Only expose part picking when the model actually has multiple parts.
+  const pickable = viewer.parts.length > 1;
+
+  const partIdFromEvent = (e: ThreeEvent<MouseEvent | PointerEvent>): string | null => {
+    const obj = e.object;
+    if (!(obj instanceof THREE.Mesh) || !obj.material) return null;
+    let mat: THREE.Material;
+    if (Array.isArray(obj.material)) {
+      const idx = Math.min(e.face?.materialIndex ?? 0, obj.material.length - 1);
+      mat = obj.material[idx];
+    } else {
+      mat = obj.material;
+    }
+    return mat instanceof THREE.MeshPhysicalMaterial
+      ? materialPartRef.current.get(mat) ?? null
+      : null;
+  };
+
+  return (
+    <primitive
+      object={gltf.scene}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        // e.delta = pointer travel since pointerdown — big delta means the
+        // user was orbiting the camera, not clicking a part.
+        if (!pickable || e.delta > 4) return;
+        e.stopPropagation();
+        const partId = partIdFromEvent(e);
+        if (partId) {
+          dispatch(selectPart(partId === viewer.selectedPartId ? null : partId));
+        }
+      }}
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+        if (!pickable) return;
+        e.stopPropagation();
+        const partId = partIdFromEvent(e);
+        if (partId) {
+          dispatch(highlightPart(partId));
+          document.body.style.cursor = "pointer";
+        }
+      }}
+      onPointerOut={() => {
+        if (!pickable) return;
+        dispatch(highlightPart(null));
+        document.body.style.cursor = "";
+      }}
+    />
+  );
 }
 
 export function ConfigurableViewer({

@@ -6,10 +6,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
+  highlightPart,
   patchViewer,
   resetTuning,
+  selectPart,
+  setPartColor,
   type Finish,
   type LightingPreset,
+  type ViewerPart,
 } from "@/store/slices/viewerSlice";
 
 const PALETTE: { label: string; hex: string }[] = [
@@ -88,10 +92,32 @@ export function ControlsPanel({
       </header>
 
       <div className="flex flex-col divide-y divide-zinc-200/70 dark:divide-zinc-800/70">
-        <Section title="Color" hint="Pick a custom color or one of the swatches.">
+        <Section
+          title="Color"
+          hint={
+            viewer.parts.length > 1
+              ? "Click a part on the model (or pick one below), then choose its color."
+              : "Pick a custom color or one of the swatches."
+          }
+        >
+          {viewer.parts.length > 1 && (
+            <PartRow
+              parts={viewer.parts}
+              selected={viewer.selectedPartId}
+              partColors={viewer.partColors}
+              onSelect={(id) => dispatch(selectPart(id))}
+              onHover={(id) => dispatch(highlightPart(id))}
+            />
+          )}
           <ColorRow
-            value={viewer.color}
-            onChange={(c) => dispatch(patchViewer({ color: c }))}
+            value={
+              viewer.selectedPartId
+                ? viewer.partColors[viewer.selectedPartId] ?? null
+                : viewer.color
+            }
+            onChange={(c) =>
+              dispatch(setPartColor({ partId: viewer.selectedPartId, color: c }))
+            }
           />
         </Section>
 
@@ -161,6 +187,80 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+function PartRow({
+  parts,
+  selected,
+  partColors,
+  onSelect,
+  onHover,
+}: {
+  parts: ViewerPart[];
+  selected: string | null;
+  partColors: Record<string, string>;
+  onSelect: (id: string | null) => void;
+  onHover: (id: string | null) => void;
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-1.5">
+      <PartChip
+        active={selected === null}
+        label="Whole product"
+        onClick={() => onSelect(null)}
+      />
+      {parts.map((p) => (
+        <PartChip
+          key={p.id}
+          active={selected === p.id}
+          label={p.label}
+          dot={partColors[p.id]}
+          onClick={() => onSelect(p.id)}
+          onMouseEnter={() => onHover(p.id)}
+          onMouseLeave={() => onHover(null)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PartChip({
+  active,
+  label,
+  dot,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  active: boolean;
+  label: string;
+  dot?: string;
+  onClick: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className={cn(
+        "flex max-w-[11rem] items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium tracking-tight transition-colors",
+        active
+          ? "border-zinc-900 bg-zinc-900 text-white shadow-sm shadow-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none"
+          : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600",
+      )}
+    >
+      {dot && (
+        <span
+          className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/20 dark:border-white/20"
+          style={{ backgroundColor: dot }}
+        />
+      )}
+      <span className="truncate">{label}</span>
+    </button>
   );
 }
 

@@ -10,6 +10,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Vendor-Gated Product Approval (cross-sprint) — complete
 - Listing Thumbnail Pipeline (cross-sprint, performance) — complete
 - Product Categories (cross-sprint) — complete
+- Per-Part Color Customization (cross-sprint, configurator) — complete
 
 ## Current Goal
 - Sprint 11-12 (Testing & Polish: E2E tests, performance benchmarking, accessibility audit, deployment) — not started
@@ -198,6 +199,14 @@ Goal: let vendors classify each product under a category and let customers filte
 ### Vendor Product Edit (cross-sprint)
 
 - Feature 93: Edit product metadata — New route `/vendor/products/[id]/edit` (`page.tsx` + `edit-product-form.tsx`) lets a vendor edit an existing listing's **title, description, price, stock, and category**. The GLB model, variants, and thumbnail are intentionally **not** editable (re-uploading a model has compression/storage implications — still deferred). `updateProduct` server action in `app/(vendor)/vendor/products/actions.ts` re-uses the same Zod validation shape as upload, checks vendor ownership (admins bypass), resolves the category via `resolveCategoryId` (falls back to Others), and updates the row. Slug is kept stable (public URL / SEO) and **status is left untouched** — an approved vendor's edits stay live, a pending/rejected product keeps its state. An "Edit" link was added next to Delete on each `/vendor/products` row.
+
+### Per-Part Color Customization (cross-sprint)
+
+- Feature 94: Per-part color — the configurator's Color section can now target individual parts of the model instead of always recoloring everything.
+  - `store/slices/viewerSlice.ts` — new state: `parts: ViewerPart[]` (discovered from the GLB by the viewer), `selectedPartId` (which part the swatches target; null = whole product), `highlightedPartId` (hover glow), `partColors: Record<partId, hex>` (per-part overrides; they win over the whole-product `color`). New reducers: `setParts` (prunes stale ids), `selectPart`, `highlightPart`, `setPartColor` (partId null → sets global `color` and clears all per-part overrides so a whole-product pick truly applies everywhere; color null → removes that part's override). `setVariant` now clears `partColors` + `selectedPartId` — a vendor variant is a whole-product look.
+  - `components/viewer/configurable-viewer.tsx` — during the material-upgrade traversal, materials are grouped into customer-facing parts keyed by GLB material name (fallback: mesh name, then `mesh:{uuid}:{i}`); name-based ids are stable across re-traversals so overrides survive React StrictMode re-runs. The traversal dispatches `setParts`. Color + texture effects resolve `partColors[partId] ?? color` per material (the albedo-map drop for true color rendering is now per-material too). New emissive-glow effect highlights the hovered part (`#3b82f6`, intensity 0.35; originals snapshot gained `emissive` + `emissiveIntensity`). The `<primitive>` gains pointer handlers when the model has >1 part: click selects/toggles the part under the cursor (guarded by `e.delta > 4` so orbit drags don't count as clicks), hover glows it and sets a pointer cursor.
+  - `components/viewer/controls-panel.tsx` — Color section renders a `PartRow` chip strip ("Whole product" + one chip per part, with a color dot when that part has an override) when the model has >1 part. Hovering a chip glows the matching part on the model; the swatch row below edits whichever target is selected. Section hint updates to explain click-to-pick.
+  - Per-part colors remain preview-only like every other customization — nothing new serializes into the cart.
 
 ## In Progress
 
