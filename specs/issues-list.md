@@ -1409,3 +1409,20 @@ Test-NetConnection aws-1-ap-northeast-1.pooler.supabase.com -Port 6543
 **Takeaway**
 
 `Can't reach database server` is a *transport* error, and the query Prisma names in the stack trace is coincidental — don't start by reading the query. Walk the layers outward: is the project up → does the hostname resolve → does the port connect → does the query run. Here, three of the four layers were fine and the app code was never at fault; a 60 %-failure-rate resolver had been quietly taxing the whole project long enough that a workaround for it (migrating via MCP) was already baked into the docs as though it were normal.
+
+---
+
+**Recurrence — 2026-07-30, `/products` after the categories filter query**
+
+Same symptom, same root cause, one new data point: this time the router resolver wasn't flaky-but-eventually-succeeding — it **consistently returned `DNS operation refused`** (3/3 attempts via `Resolve-DnsName`, no successes), while `1.1.1.1` and `8.8.8.8` resolved it immediately every time (CNAME → `pool-tcp-apne11-….elb.ap-northeast-1.amazonaws.com`, 60 s TTL). Re-verified the project was healthy first (`mcp__supabase__get_project` → `ACTIVE_HEALTHY`) before touching networking, per the diagnosis order above.
+
+Attempted the documented fix (`Set-DnsClientServerAddress` / `netsh interface ip set dns`) from the agent's shell — it isn't elevated, so both commands failed with *"The requested operation requires elevation."* The agent cannot self-elevate a Windows shell, so this fix requires the user to run one of the following themselves in an **admin** PowerShell:
+
+```powershell
+Set-DnsClientServerAddress -InterfaceAlias "Wi-Fi" -ServerAddresses 8.8.8.8,1.1.1.1
+Clear-DnsClientCache
+```
+
+or the GUI path (Settings → Network & Internet → Wi-Fi → your network → Edit DNS server assignment → Manual → `1.1.1.1` / `8.8.8.8`).
+
+**Addendum to the takeaway:** when this recurs inside an agent/CI shell that isn't running elevated, don't attempt the `netsh`/`Set-DnsClientServerAddress` fix blind — it will silently no-op or error requiring elevation. Confirm project health + DNS behavior (both possible without elevation), then hand the actual adapter change back to the user with the exact command.

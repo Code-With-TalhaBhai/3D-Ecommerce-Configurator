@@ -96,7 +96,7 @@ export function ControlsPanel({
           title="Color"
           hint={
             viewer.parts.length > 1
-              ? "Click a part on the model (or pick one below), then choose its color."
+              ? "Pick a part below, then choose its color."
               : "Pick a custom color or one of the swatches."
           }
         >

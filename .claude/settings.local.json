@@ -36,7 +36,21 @@
       "mcp__playwright__browser_take_screenshot",
       "mcp__playwright__browser_snapshot",
       "mcp__playwright__browser_click",
-      "Bash(git -C \"d:/code_apps/final-year-project\" status --porcelain)"
+      "Bash(git -C \"d:/code_apps/final-year-project\" status --porcelain)",
+      "PowerShell(Test-NetConnection -ComputerName aws-1-ap-northeast-1.pooler.supabase.com -Port 5432 -InformationLevel Detailed)",
+      "PowerShell(Resolve-DnsName -Name aws-1-ap-northeast-1.pooler.supabase.com -ErrorAction SilentlyContinue)",
+      "PowerShell(Resolve-DnsName -Name aws-1-ap-northeast-1.pooler.supabase.com -Server 1.1.1.1 -ErrorAction SilentlyContinue)",
+      "PowerShell(ipconfig /flushdns)",
+      "PowerShell(netsh interface ip set dns name=\"Wi-Fi\" static 1.1.1.1 primary)",
+      "PowerShell(netsh interface ip add dns name=\"Wi-Fi\" 8.8.8.8 index=2)",
+      "PowerShell(netsh interface ip add dns name=\"Wi-Fi\" 1.0.0.1 index=3)",
+      "PowerShell(netsh interface ip add dns name=\"Wi-Fi\" 8.8.4.4 index=4)",
+      "PowerShell(Get-DnsClientServerAddress -InterfaceAlias \"Wi-Fi\")",
+      "PowerShell(npx eslint components/viewer/configurable-viewer.tsx)",
+      "mcp__playwright__browser_console_messages",
+      "Bash(git -C \"d:/code_apps/final-year-project\" diff --stat specs/issues-list.md)",
+      "Bash(git -C \"d:/code_apps/final-year-project\" diff specs/issues-list.md)",
+      "PowerShell(npx eslint components/viewer/configurable-viewer.tsx components/viewer/controls-panel.tsx)"
     ],
     "defaultMode": "acceptEdits"
   },

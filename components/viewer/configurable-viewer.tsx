@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas, type ThreeEvent } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import {
   Bounds,
   Center,
@@ -13,8 +13,6 @@ import * as THREE from "three";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
-  highlightPart,
-  selectPart,
   setParts,
   type Finish,
   type LightingPreset,
@@ -113,8 +111,8 @@ function ConfigurableModel({
   // Per-material originals so we can restore color / map / finish when the
   // user picks "Default" / "Original".
   const originalsRef = useRef<Map<THREE.MeshPhysicalMaterial, Original>>(new Map());
-  // material → part id, so pointer events and the color effect can resolve
-  // which selectable "part" a material belongs to.
+  // material → part id, so the color/highlight effects can resolve which
+  // selectable "part" a material belongs to.
   const materialPartRef = useRef<Map<THREE.MeshPhysicalMaterial, string>>(new Map());
 
   // Upgrade every cloned material to MeshPhysicalMaterial (superset of Standard
@@ -300,60 +298,12 @@ function ConfigurableModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewer.highlightedPartId, gltf.scene]);
 
-  // Reset the cursor if we unmount mid-hover.
-  useEffect(() => {
-    return () => {
-      document.body.style.cursor = "";
-    };
-  }, []);
-
-  // Only expose part picking when the model actually has multiple parts.
-  const pickable = viewer.parts.length > 1;
-
-  const partIdFromEvent = (e: ThreeEvent<MouseEvent | PointerEvent>): string | null => {
-    const obj = e.object;
-    if (!(obj instanceof THREE.Mesh) || !obj.material) return null;
-    let mat: THREE.Material;
-    if (Array.isArray(obj.material)) {
-      const idx = Math.min(e.face?.materialIndex ?? 0, obj.material.length - 1);
-      mat = obj.material[idx];
-    } else {
-      mat = obj.material;
-    }
-    return mat instanceof THREE.MeshPhysicalMaterial
-      ? materialPartRef.current.get(mat) ?? null
-      : null;
-  };
-
-  return (
-    <primitive
-      object={gltf.scene}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        // e.delta = pointer travel since pointerdown — big delta means the
-        // user was orbiting the camera, not clicking a part.
-        if (!pickable || e.delta > 4) return;
-        e.stopPropagation();
-        const partId = partIdFromEvent(e);
-        if (partId) {
-          dispatch(selectPart(partId === viewer.selectedPartId ? null : partId));
-        }
-      }}
-      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-        if (!pickable) return;
-        e.stopPropagation();
-        const partId = partIdFromEvent(e);
-        if (partId) {
-          dispatch(highlightPart(partId));
-          document.body.style.cursor = "pointer";
-        }
-      }}
-      onPointerOut={() => {
-        if (!pickable) return;
-        dispatch(highlightPart(null));
-        document.body.style.cursor = "";
-      }}
-    />
-  );
+  // Part selection and hover-highlight are driven entirely by the controls
+  // panel's chip list (selectPart / highlightPart dispatched from there).
+  // The model itself is not pointer-interactive for picking — click/hover
+  // handlers here previously fought with OrbitControls' drag-to-orbit
+  // gesture (an orbit drag could register as a part click).
+  return <primitive object={gltf.scene} />;
 }
 
 export function ConfigurableViewer({
