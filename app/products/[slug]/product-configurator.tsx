@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Layers, MousePointer2, ShoppingCart } from "lucide-react";
+import { Check, Layers, MousePointer2, ScanLine, ShoppingCart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,10 @@ const ControlsPanel = dynamic(
   () => import("@/components/viewer/controls-panel").then((m) => m.ControlsPanel),
   { ssr: false },
 );
+
+const ARViewer = dynamic(() => import("@/components/viewer/ar-viewer").then((m) => m.ARViewer), {
+  ssr: false,
+});
 
 type Variant = {
   id: string;
@@ -71,6 +76,29 @@ export function ProductConfigurator({ product }: { product: Product }) {
   const [modelReady, setModelReady] = useState(false);
   const [showLoader, setShowLoader] = useState(true);
   const screenshotterRef = useRef<(() => string | null) | null>(null);
+  const [arSupported, setArSupported] = useState(false);
+  const [arOpen, setArOpen] = useState(false);
+
+  // Feature-detect WebXR immersive-ar (Android Chrome/ARCore-class devices
+  // today — iOS Safari has no WebXR support, so this resolves false there
+  // and the button never renders rather than showing something that'd fail
+  // to launch). Kept out of the initial bundle: only the tiny navigator.xr
+  // check runs eagerly, the AR viewer itself (and @react-three/xr) loads on
+  // demand via the dynamic import above.
+  useEffect(() => {
+    let cancelled = false;
+    navigator.xr
+      ?.isSessionSupported("immersive-ar")
+      .then((supported) => {
+        if (!cancelled) setArSupported(supported);
+      })
+      .catch(() => {
+        if (!cancelled) setArSupported(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     dispatch(resetVariant());
@@ -167,15 +195,26 @@ export function ProductConfigurator({ product }: { product: Product }) {
       {/* Viewer — sticky on lg+ so customizations reflect without scrolling */}
       <div className="flex flex-col gap-3 lg:sticky lg:top-20 lg:self-start">
         <div className="relative aspect-square overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-zinc-50 via-white to-zinc-100 shadow-sm shadow-zinc-900/[0.04] dark:border-zinc-800/80 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950 dark:shadow-none lg:aspect-[4/3] lg:max-h-[calc(100dvh-7rem)]">
-          {product.glbUrl ? (
+          {product.glbUrl && !arOpen ? (
             <ConfigurableViewer
               src={product.glbUrl}
               className="h-full w-full"
               onFirstFrame={handleFirstFrame}
               onScreenshotterReady={onScreenshotterReady}
             />
-          ) : (
+          ) : !product.glbUrl ? (
             <ViewerLoader label="3D model unavailable" />
+          ) : null}
+
+          {product.glbUrl && arSupported && modelReady && !arOpen && (
+            <button
+              type="button"
+              onClick={() => setArOpen(true)}
+              className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full border border-zinc-200/80 bg-white/90 px-3 py-1.5 text-[11px] font-medium text-zinc-800 shadow-sm backdrop-blur hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-700/60 dark:bg-zinc-900/90 dark:text-zinc-100"
+            >
+              <ScanLine className="h-3.5 w-3.5" />
+              View in your space
+            </button>
           )}
 
           {product.glbUrl && showLoader && (
@@ -315,6 +354,10 @@ export function ProductConfigurator({ product }: { product: Product }) {
           )}
         </dl>
       </aside>
+
+      {arOpen &&
+        product.glbUrl &&
+        createPortal(<ARViewer src={product.glbUrl} onClose={() => setArOpen(false)} />, document.body)}
     </div>
   );
 }

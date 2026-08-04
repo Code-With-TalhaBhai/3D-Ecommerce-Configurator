@@ -51,6 +51,7 @@ The platform replaces static 2D product images with real-time 3D interaction (pa
 - Mobile-first responsive — no browser plugins required
 - Level of Detail (LOD) support for performance across device tiers
 - Supported browsers: all modern browsers (excludes IE, Safari < 15)
+- **Augmented Reality "place in room"**: on WebXR-capable handheld devices (Android Chrome/Edge on ARCore-class hardware today), a "View in your space" action opens a camera-passthrough AR session where the customer taps a detected floor/tabletop surface to place a life-size instance of the model, then can reposition or rescale it. The AR placement carries over whatever color/finish/vendor-variant the customer had selected in the regular configurator. The entry point is feature-detected and hidden entirely on devices/browsers without WebXR `immersive-ar` support (e.g. iOS Safari) rather than shown and failing.
 
 ### 3.4 Multi-Vendor Marketplace
 
@@ -129,6 +130,7 @@ The platform replaces static 2D product images with real-time 3D interaction (pa
 | 3D rendering | React Three Fiber / Three.js |
 | 3D asset format | GLB / GLTF |
 | 3D compression | Draco (Google) |
+| Augmented Reality | WebXR Device API via `@react-three/xr` (hit-test + DOM overlay) |
 | State management | Redux Toolkit + RTK Query |
 | Styling | Tailwind CSS |
 | Backend | Next.js API routes + Server Actions |
@@ -203,7 +205,7 @@ Stripe            →  payment processing
 
 - AI-based 3D model generation (e.g. Tripo AI)
 - Native iOS / Android applications
-- Augmented Reality "place in room" feature
+- iOS AR support (Apple AR Quick Look via USDZ) — the shipped AR feature is WebXR-only (Android); a USDZ conversion pipeline for iOS is a possible future expansion, not built in this phase
 - Physical logistics or last-mile delivery integration
 - Legacy browser support (Internet Explorer, Safari < 15)
 
@@ -217,6 +219,7 @@ Stripe            →  payment processing
 - Real-time chat uses Supabase Realtime — no separate WebSocket server needed
 - Draco compression is applied server-side automatically; vendors upload uncompressed files
 - Admin approval is required at the **vendor** level before that vendor's uploads go live. Once a vendor is approved, their subsequent product uploads auto-publish; admins retain a per-listing revoke action for take-downs.
+- AR "place in room" targets WebXR-capable Android browsers only in this phase; it is feature-detected and hidden (not shown-and-broken) on unsupported devices/browsers, including iOS Safari
 
 ---
 

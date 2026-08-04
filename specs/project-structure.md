@@ -16,6 +16,7 @@
 | Storage | AWS S3 (+ optional CloudFront) behind a same-origin proxy |
 | Payments | Stripe-hosted Checkout (redirect flow) |
 | Realtime chat | Supabase Realtime broadcast |
+| AR ("place in room") | WebXR Device API via `@react-three/xr` 6 (hit-test + DOM overlay), Android only |
 
 Path alias: `"@/*": ["./*"]` — every import is root-relative.
 
@@ -75,7 +76,7 @@ Route groups (`(name)`) don't appear in URLs but scope layouts. Public-facing un
 - `products/search-bar.tsx` — Client controlled form that pushes filter querystring.
 - `products/[slug]/page.tsx` — RSC product detail. Loads APPROVED product (else `notFound()`), generates OG metadata, mounts `<ProductConfigurator>` + optional `<ProductChatPanel>` (when viewer is signed in and isn't the vendor).
 - `products/[slug]/loading.tsx` — Skeleton mirroring `ProductConfigurator`'s 2-column split — viewer pane, vendor/title/price column, variant chips, controls block, CTA.
-- `products/[slug]/product-configurator.tsx` — Client island. Sticky 3D viewer (left) + scrolling aside (right) with title/price/stock pill, variant chips, controls panel, add-to-cart, description, stats ribbon. An in-viewer `<ViewerLoader>` (brand glyph + rotating ring + animated dots, same language as the global `PageLoader`) fills the canvas frame until `ConfigurableViewer` fires `onFirstFrame`, then fades out over 300 ms. The same loader doubles as the `dynamic({ loading })` fallback so the JS-chunk and GLB-fetch phases share one continuous visual.
+- `products/[slug]/product-configurator.tsx` — Client island. Sticky 3D viewer (left) + scrolling aside (right) with title/price/stock pill, variant chips, controls panel, add-to-cart, description, stats ribbon. An in-viewer `<ViewerLoader>` (brand glyph + rotating ring + animated dots, same language as the global `PageLoader`) fills the canvas frame until `ConfigurableViewer` fires `onFirstFrame`, then fades out over 300 ms. The same loader doubles as the `dynamic({ loading })` fallback so the JS-chunk and GLB-fetch phases share one continuous visual. Feature-detects WebXR (`navigator.xr?.isSessionSupported("immersive-ar")`) on mount; when supported, a "View in your space" pill opens `<ARViewer>` (dynamic, `ssr:false`, portaled to `document.body`) and the on-page `ConfigurableViewer` unmounts for the duration (avoids two live WebGL contexts / scene-mutation races).
 
 ### Cart, checkout, account
 - `cart/layout.tsx` — `<PublicHeader>` wrapper.
@@ -147,7 +148,8 @@ components/
 │   ├── glb-viewer.tsx          ← R3F canvas + Bounds + OrbitControls. Used by the upload preview (with optional `onScreenshotterReady` for thumbnail capture) and the admin review queue
 │   ├── product-thumb.tsx       ← Plain HTML <img> + icon placeholder. Used by every listing surface (no WebGL on listings)
 │   ├── configurable-viewer.tsx ← Customer viewer: upgrades materials to MeshPhysicalMaterial, applies color / finish / lighting / texture / backdrop / autorotate from the viewer slice, exposes a screenshot closure
-│   └── controls-panel.tsx      ← Sectioned panel (Color / Finish / Lighting / Backdrop / Spin / Save snapshot), dispatches patchViewer
+│   ├── controls-panel.tsx      ← Sectioned panel (Color / Finish / Lighting / Backdrop / Spin / Save snapshot), dispatches patchViewer
+│   └── ar-viewer.tsx           ← WebXR "place in room": hit-test reticle, tap-to-place, +/- rescale; clones the cached GLTF scene and re-applies color/finish/texture from the viewer slice so AR matches the on-page customization
 └── chat/
     └── product-chat-panel.tsx  ← Initial fetch + Supabase Realtime subscribe; deduped bubbles; textarea send (Enter to send)
 ```
@@ -171,6 +173,8 @@ lib/
 ├── glb/
 │   ├── limits.ts        ← MAX_GLB_BYTES (100 MB), MAX_TRIANGLES (2M), MAX_TEXTURE_BYTES, MAX_VARIANTS, GLB_MAGIC
 │   └── process.ts       ← NodeIO (cached) + Draco encoder; magic-byte check, triangle count, compression
+├── viewer/
+│   └── material.ts      ← Shared material helpers (FINISH_MAP, copyMaterialSafely, upgradeToPhysical, derivePartId) used by both ConfigurableViewer and ARViewer so a given finish/part-color resolves identically in both surfaces
 ├── storage/
 │   ├── index.ts         ← StorageDriver interface; re-exports the chosen driver (s3Storage today)
 │   ├── s3.ts            ← @aws-sdk/client-s3 implementation; lazy env validation; returns CloudFront URL if AWS_CLOUDFRONT_URL is set, else virtual-hosted S3 URL
@@ -373,6 +377,31 @@ Segment commits  →  usePathname / useSearchParams updates
         └── 220-ms fade out → setPhase("idle")  →  bar unmounts
 ```
 
+### 6. Placing a product in AR
+
+```
+/products/[slug]  (Android Chrome/Edge, WebXR-capable)
+  │
+  ├── useEffect: navigator.xr?.isSessionSupported("immersive-ar")  → true
+  │     └── "View in your space" pill renders (top-right of viewer frame)
+  │
+  ▼ tap
+setArOpen(true)
+  ├── <ConfigurableViewer> unmounts (frees the WebGL context, avoids a
+  │     scene-mutation race with the AR clone below)
+  └── createPortal(<ARViewer src={glbUrl} onClose={...} />, document.body)
+        ├── xrStore.enterAR()                      → immersive-ar session starts
+        ├── useStyledScene(src)
+        │     ├── gltf.scene.clone(true)             (decoupled from the cached shared scene)
+        │     ├── upgradeToPhysical + color/finish from the `viewer` Redux slice
+        │     │     (same slice ConfigurableViewer was just reading — carries the look over for free)
+        │     └── Box3 → floorOffset                 (rests the model's base on the tapped surface)
+        ├── useXRHitTest("viewer", "plane")  → reticle tracks the floor each frame
+        ├── tap "Place here"  → decompose last hit matrix → lock model in place
+        └── ✕ or OS AR-exit  → xrStore.subscribe detects session → null → onClose()
+              └── setArOpen(false)  →  <ConfigurableViewer> remounts
+```
+
 ---
 
 ## Conventions you'll see repeated
@@ -388,4 +417,5 @@ Segment commits  →  usePathname / useSearchParams updates
 - **Stripe orders**: `Order` is created **before** the Stripe session (PENDING, `stripeSessionId` patched in immediately after) so the webhook always has a row to flip.
 - **Promo codes**: always uppercased on lookup and on insert (`/admin/promos` already uppercases on create).
 - **Cart persistence key**: `3dmkt:cart:v1` (versioned, so a future schema bump can wipe and rehydrate cleanly).
+- **AR is WebXR-only and feature-detected, never shown-and-broken**: the "View in your space" entry point on `/products/[slug]` only renders after `navigator.xr?.isSessionSupported("immersive-ar")` resolves `true` — Android Chrome/Edge on ARCore-class hardware today, hidden everywhere else (iOS Safari has no WebXR support). `@react-three/xr` only loads once that button is actually clicked (`dynamic(..., { ssr: false })`), so unsupported devices pay zero extra bundle cost.
 - **Loading feedback is two-layered**: every navigable segment gets a `loading.tsx` (segment-level Suspense fallback — skeleton when chrome is preserved, `<PageLoader>` when the page replaces full-screen) **and** the globally mounted `<RouteProgress>` fires the moment a same-origin link is clicked (covers Links, `router.push`/`router.replace`, and back/forward). Re-use `Spinner` for in-button waits, `Skeleton` for inline placeholders, `PageLoader` for full-screen / full-section waits.
