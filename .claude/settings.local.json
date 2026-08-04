@@ -50,7 +50,9 @@
       "mcp__playwright__browser_console_messages",
       "Bash(git -C \"d:/code_apps/final-year-project\" diff --stat specs/issues-list.md)",
       "Bash(git -C \"d:/code_apps/final-year-project\" diff specs/issues-list.md)",
-      "PowerShell(npx eslint components/viewer/configurable-viewer.tsx components/viewer/controls-panel.tsx)"
+      "PowerShell(npx eslint components/viewer/configurable-viewer.tsx components/viewer/controls-panel.tsx)",
+      "mcp__playwright__browser_hover",
+      "Bash(git -C \"d:/code_apps/final-year-project\" diff --stat components/viewer/configurable-viewer.tsx)"
     ],
     "defaultMode": "acceptEdits"
   },

@@ -10,6 +10,7 @@ import {
 } from "@react-three/drei";
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -101,9 +102,11 @@ function copyMaterialSafely(target: THREE.MeshPhysicalMaterial, source: THREE.Ma
 function ConfigurableModel({
   src,
   onFirstFrame,
+  controlsRef,
 }: {
   src: string;
   onFirstFrame?: () => void;
+  controlsRef: React.RefObject<OrbitControlsImpl | null>;
 }) {
   const gltf = useGLTF(src);
   const viewer = useAppSelector((s) => s.viewer);
@@ -298,6 +301,64 @@ function ConfigurableModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewer.highlightedPartId, gltf.scene]);
 
+  // --- Rotate the camera to bring the selected part into view ---
+  // A part chosen from the controls panel can sit anywhere on the model —
+  // often on a side the customer isn't currently looking at. Re-aim the
+  // orbit around the part's bounding-box center so it faces the camera.
+  // `setAzimuthalAngle` / `setPolarAngle` queue a shortest-path delta and call
+  // `update()` once — but with damping on, a single `update()` only applies
+  // `dampingFactor` (5% by default) of that delta, leaving the rest to decay
+  // over many subsequent per-frame `update()` calls. Relying on the render
+  // loop to supply those follow-up frames turned out to be unreliable (shows
+  // up as a small "jerk" and nothing further). Instead we drive the decay to
+  // near-completion ourselves, synchronously, with repeated `update()` calls
+  // in the same tick — no animation spread across frames for anything else
+  // to interfere with. Distance (zoom) is untouched — only orientation
+  // changes. Guarded against React StrictMode's dev-only double-invoke of
+  // effects: without the guard, two back-to-back calls for the same part can
+  // queue overlapping deltas on top of each other and produce a visible
+  // stutter.
+  const lastFocusedPartRef = useRef<string | null>(null);
+  useEffect(() => {
+    const partId = viewer.selectedPartId;
+    if (!partId) {
+      // Deselecting clears the guard so re-picking the same part later
+      // (after the user has since orbited elsewhere) rotates again.
+      lastFocusedPartRef.current = null;
+      return;
+    }
+    const controls = controlsRef.current;
+    if (!controls || partId === lastFocusedPartRef.current) return;
+
+    const box = new THREE.Box3();
+    let found = false;
+    gltf.scene.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh) || !obj.material) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      const matchesPart = mats.some(
+        (m) => m instanceof THREE.MeshPhysicalMaterial && materialPartRef.current.get(m) === partId,
+      );
+      if (matchesPart) {
+        box.expandByObject(obj);
+        found = true;
+      }
+    });
+    if (!found || box.isEmpty()) return;
+
+    const partCenter = box.getCenter(new THREE.Vector3());
+    const direction = partCenter.sub(controls.target);
+    if (direction.lengthSq() < 1e-6) return;
+
+    lastFocusedPartRef.current = partId;
+    const spherical = new THREE.Spherical().setFromVector3(direction);
+    controls.setAzimuthalAngle(spherical.theta);
+    controls.setPolarAngle(spherical.phi);
+    // Drive the damped delta to ~99.9% convergence in one synchronous burst
+    // (dampingFactor defaults to 0.05, so (1 - 0.05)^130 ≈ 0.001 residual).
+    for (let i = 0; i < 130; i++) controls.update();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer.selectedPartId, gltf.scene]);
+
   // Part selection and hover-highlight are driven entirely by the controls
   // panel's chip list (selectPart / highlightPart dispatched from there).
   // The model itself is not pointer-interactive for picking — click/hover
@@ -314,6 +375,7 @@ export function ConfigurableViewer({
 }: ConfigurableViewerProps) {
   const viewer = useAppSelector((s) => s.viewer);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const controlsRef = useRef<OrbitControlsImpl>(null);
 
   const screenshotter = useMemo(() => {
     return () => {
@@ -351,14 +413,30 @@ export function ConfigurableViewer({
         <ambientLight intensity={0.45} />
         <directionalLight position={[5, 5, 5]} intensity={1.1} castShadow />
         <Suspense fallback={null}>
-          <Bounds fit clip observe margin={1.2}>
+          {/*
+            No `observe`: with it, Bounds' fit-layout-effect re-runs and
+            replays its own camera-fit animation whenever its dependencies
+            (camera/controls/size) so much as get re-evaluated — which
+            fights our part-focus rotation below, snapping the camera back
+            to the original fitted view a moment after we rotate it. The
+            model's geometry never changes after load, so we only need the
+            one-time fit on mount (`count.current++ === 0` still covers
+            that without `observe`); we lose re-fit-on-window-resize, which
+            is an acceptable trade for a working rotation feature.
+          */}
+          <Bounds fit clip margin={1.2}>
             <Center>
-              <ConfigurableModel src={src} onFirstFrame={onFirstFrame} />
+              <ConfigurableModel
+                src={src}
+                onFirstFrame={onFirstFrame}
+                controlsRef={controlsRef}
+              />
             </Center>
           </Bounds>
           <Environment key={dreiPreset} preset={dreiPreset} />
         </Suspense>
         <OrbitControls
+          ref={controlsRef}
           makeDefault
           enableDamping
           autoRotate={viewer.autoRotate}
