@@ -76,7 +76,7 @@ Route groups (`(name)`) don't appear in URLs but scope layouts. Public-facing un
 - `products/search-bar.tsx` — Client controlled form that pushes filter querystring.
 - `products/[slug]/page.tsx` — RSC product detail. Loads APPROVED product (else `notFound()`), generates OG metadata, mounts `<ProductConfigurator>` + optional `<ProductChatPanel>` (when viewer is signed in and isn't the vendor).
 - `products/[slug]/loading.tsx` — Skeleton mirroring `ProductConfigurator`'s 2-column split — viewer pane, vendor/title/price column, variant chips, controls block, CTA.
-- `products/[slug]/product-configurator.tsx` — Client island. Sticky 3D viewer (left) + scrolling aside (right) with title/price/stock pill, variant chips, controls panel, add-to-cart, description, stats ribbon. An in-viewer `<ViewerLoader>` (brand glyph + rotating ring + animated dots, same language as the global `PageLoader`) fills the canvas frame until `ConfigurableViewer` fires `onFirstFrame`, then fades out over 300 ms. The same loader doubles as the `dynamic({ loading })` fallback so the JS-chunk and GLB-fetch phases share one continuous visual. Feature-detects WebXR (`navigator.xr?.isSessionSupported("immersive-ar")`) on mount; when supported, a "View in your space" pill opens `<ARViewer>` (dynamic, `ssr:false`, portaled to `document.body`) and the on-page `ConfigurableViewer` unmounts for the duration (avoids two live WebGL contexts / scene-mutation races).
+- `products/[slug]/product-configurator.tsx` — Client island. Sticky 3D viewer (left) + scrolling aside (right) with title/price/stock pill, variant chips, controls panel, add-to-cart, description, stats ribbon. An in-viewer `<ViewerLoader>` (brand glyph + rotating ring + animated dots, same language as the global `PageLoader`) fills the canvas frame until `ConfigurableViewer` fires `onFirstFrame`, then fades out over 300 ms. The same loader doubles as the `dynamic({ loading })` fallback so the JS-chunk and GLB-fetch phases share one continuous visual. Feature-detects WebXR (`navigator.xr?.isSessionSupported("immersive-ar")`) on mount; when supported, a "Place In Room" pill opens `<ARViewer>` (dynamic, `ssr:false`, portaled to `document.body`) and the on-page `ConfigurableViewer` unmounts for the duration (avoids two live WebGL contexts / scene-mutation races).
 
 ### Cart, checkout, account
 - `cart/layout.tsx` — `<PublicHeader>` wrapper.
@@ -383,7 +383,7 @@ Segment commits  →  usePathname / useSearchParams updates
 /products/[slug]  (Android Chrome/Edge, WebXR-capable)
   │
   ├── useEffect: navigator.xr?.isSessionSupported("immersive-ar")  → true
-  │     └── "View in your space" pill renders (top-right of viewer frame)
+  │     └── "Place In Room" pill renders (top-right of viewer frame)
   │
   ▼ tap
 setArOpen(true)
@@ -417,5 +417,5 @@ setArOpen(true)
 - **Stripe orders**: `Order` is created **before** the Stripe session (PENDING, `stripeSessionId` patched in immediately after) so the webhook always has a row to flip.
 - **Promo codes**: always uppercased on lookup and on insert (`/admin/promos` already uppercases on create).
 - **Cart persistence key**: `3dmkt:cart:v1` (versioned, so a future schema bump can wipe and rehydrate cleanly).
-- **AR is WebXR-only and feature-detected, never shown-and-broken**: the "View in your space" entry point on `/products/[slug]` only renders after `navigator.xr?.isSessionSupported("immersive-ar")` resolves `true` — Android Chrome/Edge on ARCore-class hardware today, hidden everywhere else (iOS Safari has no WebXR support). `@react-three/xr` only loads once that button is actually clicked (`dynamic(..., { ssr: false })`), so unsupported devices pay zero extra bundle cost.
+- **AR is WebXR-only and feature-detected, never shown-and-broken**: the "Place In Room" entry point on `/products/[slug]` only renders after `navigator.xr?.isSessionSupported("immersive-ar")` resolves `true` — Android Chrome/Edge on ARCore-class hardware today, hidden everywhere else (iOS Safari has no WebXR support). `@react-three/xr` only loads once that button is actually clicked (`dynamic(..., { ssr: false })`), so unsupported devices pay zero extra bundle cost.
 - **Loading feedback is two-layered**: every navigable segment gets a `loading.tsx` (segment-level Suspense fallback — skeleton when chrome is preserved, `<PageLoader>` when the page replaces full-screen) **and** the globally mounted `<RouteProgress>` fires the moment a same-origin link is clicked (covers Links, `router.push`/`router.replace`, and back/forward). Re-use `Spinner` for in-button waits, `Skeleton` for inline placeholders, `PageLoader` for full-screen / full-section waits.

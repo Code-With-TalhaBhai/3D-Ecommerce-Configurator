@@ -87,6 +87,16 @@ export function ProductConfigurator({ product }: { product: Product }) {
   // demand via the dynamic import above.
   useEffect(() => {
     let cancelled = false;
+    if (process.env.NODE_ENV === "development" && !navigator.xr && !window.isSecureContext) {
+      // The #1 reason this button doesn't show up when testing on a phone:
+      // WebXR requires a secure context, so navigator.xr is undefined on a
+      // plain http://<lan-ip>:3000 dev URL. Use the
+      // "unsafely-treat-insecure-origin-as-secure" chrome://flags override
+      // (Android) or `next dev --experimental-https` to test AR locally.
+      console.info(
+        "[AR] navigator.xr is unavailable on this insecure origin — the \"Place In Room\" button will stay hidden until this page is served over HTTPS (or localhost).",
+      );
+    }
     navigator.xr
       ?.isSessionSupported("immersive-ar")
       .then((supported) => {
@@ -213,7 +223,7 @@ export function ProductConfigurator({ product }: { product: Product }) {
               className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full border border-zinc-200/80 bg-white/90 px-3 py-1.5 text-[11px] font-medium text-zinc-800 shadow-sm backdrop-blur hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-700/60 dark:bg-zinc-900/90 dark:text-zinc-100"
             >
               <ScanLine className="h-3.5 w-3.5" />
-              View in your space
+              Place In Room
             </button>
           )}
 

@@ -70,7 +70,8 @@
       "Bash(echo \"EXIT_CODE=$?\")",
       "Bash(npm run *)",
       "Bash(npx eslint *)",
-      "Bash(echo \"TSC_EXIT=$?\")"
+      "Bash(echo \"TSC_EXIT=$?\")",
+      "Bash(echo \"EXIT=$?\")"
     ],
     "defaultMode": "acceptEdits"
   },

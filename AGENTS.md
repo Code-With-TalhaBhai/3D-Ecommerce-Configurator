@@ -51,7 +51,7 @@ The platform replaces static 2D product images with real-time 3D interaction (pa
 - Mobile-first responsive — no browser plugins required
 - Level of Detail (LOD) support for performance across device tiers
 - Supported browsers: all modern browsers (excludes IE, Safari < 15)
-- **Augmented Reality "place in room"**: on WebXR-capable handheld devices (Android Chrome/Edge on ARCore-class hardware today), a "View in your space" action opens a camera-passthrough AR session where the customer taps a detected floor/tabletop surface to place a life-size instance of the model, then can reposition or rescale it. The AR placement carries over whatever color/finish/vendor-variant the customer had selected in the regular configurator. The entry point is feature-detected and hidden entirely on devices/browsers without WebXR `immersive-ar` support (e.g. iOS Safari) rather than shown and failing.
+- **Augmented Reality "place in room"**: on WebXR-capable handheld devices (Android Chrome/Edge on ARCore-class hardware today), a "Place In Room" action opens a camera-passthrough AR session where the customer taps a detected floor/tabletop surface to place a life-size instance of the model, then can reposition or rescale it. The AR placement carries over whatever color/finish/vendor-variant the customer had selected in the regular configurator. The entry point is feature-detected and hidden entirely on devices/browsers without WebXR `immersive-ar` support (e.g. iOS Safari) rather than shown and failing.
 
 ### 3.4 Multi-Vendor Marketplace
 
