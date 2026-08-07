@@ -273,14 +273,15 @@ function ARScene({ src }: { src: string }) {
 }
 
 export function ARViewer({ src, onClose }: { src: string; onClose: () => void }) {
-  const [status, setStatus] = useState<"starting" | "active" | "error">("starting");
-  const startedRef = useRef(false);
-
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    xrStore.enterAR().catch(() => setStatus("error"));
-  }, []);
+  // "idle" — Canvas/<XR> is mounted but no session has been requested yet.
+  // WebXR's requestSession() must run inside a direct user-gesture handler
+  // AND after <XR> has attached Three's WebXRManager to the store (its very
+  // first render does that) — calling it eagerly from a mount effect can
+  // race both of those requirements. Requiring an explicit tap here
+  // satisfies the gesture rule and guarantees the canvas has long since
+  // mounted by the time it fires.
+  const [status, setStatus] = useState<"idle" | "starting" | "active" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = xrStore.subscribe((state, prev) => {
@@ -289,11 +290,23 @@ export function ARViewer({ src, onClose }: { src: string; onClose: () => void })
     return unsubscribe;
   }, [onClose]);
 
+  function handleEnter() {
+    setStatus("starting");
+    setErrorMessage(null);
+    xrStore.enterAR().catch((err: unknown) => {
+      setStatus("error");
+      setErrorMessage(err instanceof Error ? err.message : String(err));
+    });
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black">
       <Canvas gl={{ alpha: true, antialias: true }}>
         <XR store={xrStore}>
-          <SessionWatcher onActiveChange={(active) => setStatus(active ? "active" : "starting")} onEnded={onClose} />
+          <SessionWatcher
+            onActiveChange={(active) => setStatus((s) => (active ? "active" : s === "active" ? "idle" : s))}
+            onEnded={onClose}
+          />
           <IfInSessionMode allow="immersive-ar">
             <ARScene src={src} />
           </IfInSessionMode>
@@ -301,22 +314,34 @@ export function ARViewer({ src, onClose }: { src: string; onClose: () => void })
       </Canvas>
 
       {status !== "active" && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black text-center text-white">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center text-white">
           {status === "error" ? (
             <>
               <p className="text-sm font-medium">Couldn&apos;t start AR</p>
-              <p className="max-w-xs text-xs text-white/70">
-                Your browser blocked camera access, or AR isn&apos;t available right now.
-              </p>
+              {errorMessage && <p className="max-w-xs text-xs text-white/70">{errorMessage}</p>}
+              <button
+                type="button"
+                onClick={handleEnter}
+                className="rounded-full bg-white px-6 py-2.5 text-xs font-semibold text-zinc-900"
+              >
+                Try again
+              </button>
             </>
-          ) : (
+          ) : status === "starting" ? (
             <p className="text-sm font-medium">Starting AR…</p>
+          ) : (
+            <>
+              <p className="text-sm font-medium">Ready to view in AR</p>
+              <button
+                type="button"
+                onClick={handleEnter}
+                className="rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-zinc-900"
+              >
+                Enter AR
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="pointer-events-auto rounded-full border border-white/30 px-5 py-2 text-xs font-semibold"
-          >
+          <button type="button" onClick={onClose} className="rounded-full border border-white/30 px-5 py-2 text-xs font-semibold">
             Cancel
           </button>
         </div>

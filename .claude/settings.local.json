@@ -71,7 +71,12 @@
       "Bash(npm run *)",
       "Bash(npx eslint *)",
       "Bash(echo \"TSC_EXIT=$?\")",
-      "Bash(echo \"EXIT=$?\")"
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(curl -s https://raw.githubusercontent.com/pmndrs/xr/main/packages/xr/src/session.ts)",
+      "Bash(curl -s \"https://api.github.com/repos/pmndrs/xr/contents/packages/xr/src?ref=main\")",
+      "Bash(sed -n '760,830p' /tmp/store.ts)",
+      "Read(//tmp/**)",
+      "Bash(sed -n '495,560p' /tmp/store.ts)"
     ],
     "defaultMode": "acceptEdits"
   },
