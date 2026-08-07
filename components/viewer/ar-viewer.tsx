@@ -139,7 +139,11 @@ function HitTestReticle({
         }
       : undefined,
     "viewer",
-    "plane",
+    // Accepting raw feature "point" hits alongside classified "plane" hits
+    // lets the reticle lock on as soon as ARCore has any depth data for the
+    // surface, rather than waiting for a full plane classification — which
+    // on some devices/lighting can take noticeably longer or never resolve.
+    ["plane", "point"],
   );
 
   return (
@@ -227,7 +231,7 @@ function ARScene({ src }: { src: string }) {
             {!placement ? (
               <>
                 <p className="rounded-full bg-black/55 px-3 py-1.5 text-center text-xs font-medium text-white backdrop-blur-md">
-                  {hasHit ? "Tap Place to set it down" : "Point your camera at a floor or tabletop"}
+                  {hasHit ? "Tap Place to set it down" : "Slowly move your phone to scan the floor or tabletop"}
                 </p>
                 <button
                   type="button"
