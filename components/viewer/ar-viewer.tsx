@@ -12,12 +12,20 @@ import { FINISH_MAP, derivePartId, upgradeToPhysical } from "@/lib/viewer/materi
 
 // Handheld phone AR only — no controllers/hands (there aren't any), a
 // continuous hit-test source for the reticle, and a DOM overlay so our
-// placement UI renders on top of the camera passthrough.
+// placement UI renders on top of the camera passthrough. transientPointer /
+// screenInput / gaze are @react-three/xr's own built-in "tap the screen to
+// interact with the 3D scene" system — disabled because we handle every
+// interaction ourselves via dedicated buttons and raw touch gestures on the
+// dom-overlay; left enabled, it can claim touches before our own handlers
+// ever see them.
 const xrStore = createXRStore({
   hitTest: true,
   domOverlay: true,
   controller: false,
   hand: false,
+  transientPointer: false,
+  screenInput: false,
+  gaze: false,
 });
 
 /**
@@ -403,7 +411,9 @@ function ARScene({ src }: { src: string }) {
               ) : (
                 <>
                   <p className="rounded-full bg-black/55 px-3 py-1.5 text-center text-xs font-medium text-white backdrop-blur-md">
-                    Drag to move · pinch to resize · twist to rotate
+                    {process.env.NODE_ENV === "development" && debugInfo
+                      ? debugInfo
+                      : "Drag to move · pinch to resize · twist to rotate"}
                   </p>
                   <div className="flex items-center gap-2 rounded-full bg-black/55 p-1.5 backdrop-blur-md">
                     <button
