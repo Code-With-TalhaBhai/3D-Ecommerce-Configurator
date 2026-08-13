@@ -190,6 +190,7 @@ function ARScene({ src }: { src: string }) {
     scaleRef.current = scale;
   }, [placement, scale]);
   const camera = useThree((s) => s.camera);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   function handlePlace() {
     if (!hasHit) return;
@@ -265,7 +266,11 @@ function ARScene({ src }: { src: string }) {
   }
 
   function handleGestureStart(e: React.TouchEvent<HTMLDivElement>) {
-    beginGesture(readTouches(e));
+    const touches = readTouches(e);
+    beginGesture(touches);
+    if (process.env.NODE_ENV === "development") {
+      setDebugInfo(`start fingers=${touches.length} mode=${gestureRef.current.mode}`);
+    }
   }
 
   function handleGestureEnd(e: React.TouchEvent<HTMLDivElement>) {
@@ -302,6 +307,9 @@ function ARScene({ src }: { src: string }) {
       const twist = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -deltaAngle);
       const nextQuaternion = twist.multiply(g.startQuaternion);
       setPlacement({ position: current.position, quaternion: nextQuaternion });
+      if (process.env.NODE_ENV === "development") {
+        setDebugInfo(`mode=pinch fingers=${touches.length} Δangle=${((deltaAngle * 180) / Math.PI).toFixed(1)}°`);
+      }
     } else if (g.mode === "drag" && touches.length === 1) {
       const dx = touches[0].x - g.touches[0].x;
       const dy = touches[0].y - g.touches[0].y;
@@ -323,6 +331,9 @@ function ARScene({ src }: { src: string }) {
         .addScaledVector(right, dx * metersPerPixel)
         .addScaledVector(forward, -dy * metersPerPixel);
       setPlacement({ position: nextPosition, quaternion: current.quaternion });
+      if (process.env.NODE_ENV === "development") {
+        setDebugInfo(`mode=drag fingers=${touches.length}`);
+      }
     }
   }
 
@@ -354,6 +365,12 @@ function ARScene({ src }: { src: string }) {
               onTouchEnd={handleGestureEnd}
               onTouchCancel={handleGestureEnd}
             />
+          )}
+
+          {process.env.NODE_ENV === "development" && debugInfo && (
+            <div className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded bg-black/70 px-2 py-1 font-mono text-[10px] text-white">
+              {debugInfo}
+            </div>
           )}
 
           <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-4">
