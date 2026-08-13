@@ -209,7 +209,9 @@ function ARScene({ src }: { src: string }) {
   }
 
   // One-finger drag repositions the placed model along the floor; two-finger
-  // pinch rescales it. Both gestures are captured as raw touches on a
+  // pinch-and-twist rescales it and spins it around its vertical axis in the
+  // same gesture (matches the combined pinch/rotate interaction of most
+  // mobile AR viewers). Both gestures are captured as raw touches on a
   // full-screen layer inside the WebXR dom-overlay (the standard way to get
   // real interactive HTML/touch handling on top of the AR camera feed) and
   // re-baseline every time the number of active fingers changes, so lifting
@@ -218,9 +220,19 @@ function ARScene({ src }: { src: string }) {
     mode: "none" | "drag" | "pinch";
     touches: { x: number; y: number }[];
     startPosition: THREE.Vector3;
+    startQuaternion: THREE.Quaternion;
     startScale: number;
     startDistance: number;
-  }>({ mode: "none", touches: [], startPosition: new THREE.Vector3(), startScale: 1, startDistance: 0 });
+    startAngle: number;
+  }>({
+    mode: "none",
+    touches: [],
+    startPosition: new THREE.Vector3(),
+    startQuaternion: new THREE.Quaternion(),
+    startScale: 1,
+    startDistance: 0,
+    startAngle: 0,
+  });
 
   function readTouches(e: React.TouchEvent<HTMLDivElement>) {
     return Array.from(e.touches).map((t) => ({ x: t.clientX, y: t.clientY }));
@@ -230,18 +242,25 @@ function ARScene({ src }: { src: string }) {
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
+  function touchAngle(a: { x: number; y: number }, b: { x: number; y: number }) {
+    return Math.atan2(b.y - a.y, b.x - a.x);
+  }
+
   function beginGesture(touches: { x: number; y: number }[]) {
     const current = placementRef.current;
     if (!current || touches.length === 0) {
       gestureRef.current = { ...gestureRef.current, mode: "none", touches: [] };
       return;
     }
+    const multi = touches.length >= 2;
     gestureRef.current = {
-      mode: touches.length >= 2 ? "pinch" : "drag",
+      mode: multi ? "pinch" : "drag",
       touches,
       startPosition: current.position.clone(),
+      startQuaternion: current.quaternion.clone(),
       startScale: scaleRef.current,
-      startDistance: touches.length >= 2 ? touchDistance(touches[0], touches[1]) : 0,
+      startDistance: multi ? touchDistance(touches[0], touches[1]) : 0,
+      startAngle: multi ? touchAngle(touches[0], touches[1]) : 0,
     };
   }
 
@@ -266,11 +285,23 @@ function ARScene({ src }: { src: string }) {
     }
 
     if (g.mode === "pinch" && touches.length >= 2) {
-      const distance = touchDistance(touches[0], touches[1]);
       if (g.startDistance > 0) {
+        const distance = touchDistance(touches[0], touches[1]);
         const factor = distance / g.startDistance;
         setScale(Math.min(3, Math.max(0.2, g.startScale * factor)));
       }
+
+      // Twist maps 1:1 to a spin around the model's vertical (world Y) axis
+      // — the standard "turn the furniture to face another way" gesture,
+      // rather than rotating around the camera's view axis (which would tilt
+      // the model instead of just turning it). Screen coordinates are
+      // y-down, so the angle is negated to match the twist direction the
+      // finger actually traces on screen.
+      const angle = touchAngle(touches[0], touches[1]);
+      const deltaAngle = angle - g.startAngle;
+      const twist = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -deltaAngle);
+      const nextQuaternion = twist.multiply(g.startQuaternion);
+      setPlacement({ position: current.position, quaternion: nextQuaternion });
     } else if (g.mode === "drag" && touches.length === 1) {
       const dx = touches[0].x - g.touches[0].x;
       const dy = touches[0].y - g.touches[0].y;
@@ -355,7 +386,7 @@ function ARScene({ src }: { src: string }) {
               ) : (
                 <>
                   <p className="rounded-full bg-black/55 px-3 py-1.5 text-center text-xs font-medium text-white backdrop-blur-md">
-                    Drag to move · pinch to resize
+                    Drag to move · pinch to resize · twist to rotate
                   </p>
                   <div className="flex items-center gap-2 rounded-full bg-black/55 p-1.5 backdrop-blur-md">
                     <button

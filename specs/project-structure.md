@@ -149,7 +149,7 @@ components/
 │   ├── product-thumb.tsx       ← Plain HTML <img> + icon placeholder. Used by every listing surface (no WebGL on listings)
 │   ├── configurable-viewer.tsx ← Customer viewer: upgrades materials to MeshPhysicalMaterial, applies color / finish / lighting / texture / backdrop / autorotate from the viewer slice, exposes a screenshot closure
 │   ├── controls-panel.tsx      ← Sectioned panel (Color / Finish / Lighting / Backdrop / Spin / Save snapshot), dispatches patchViewer
-│   └── ar-viewer.tsx           ← WebXR "place in room": hit-test reticle, tap-to-place, +/- rescale; clones the cached GLTF scene and re-applies color/finish/texture from the viewer slice so AR matches the on-page customization
+│   └── ar-viewer.tsx           ← WebXR "place in room": hit-test reticle, tap-to-place, drag/pinch/twist gestures to move/scale/rotate; clones the cached GLTF scene and re-applies color/finish/texture from the viewer slice so AR matches the on-page customization
 └── chat/
     └── product-chat-panel.tsx  ← Initial fetch + Supabase Realtime subscribe; deduped bubbles; textarea send (Enter to send)
 ```
