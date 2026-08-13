@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import { createXRStore, XR, IfInSessionMode, XRDomOverlay, useXR, useXRHitTest } from "@react-three/xr";
 import * as THREE from "three";
@@ -183,6 +183,13 @@ function ARScene({ src }: { src: string }) {
   const [hasHit, setHasHit] = useState(false);
   const [placement, setPlacement] = useState<{ position: THREE.Vector3; quaternion: THREE.Quaternion } | null>(null);
   const [scale, setScale] = useState(1);
+  const placementRef = useRef(placement);
+  const scaleRef = useRef(scale);
+  useEffect(() => {
+    placementRef.current = placement;
+    scaleRef.current = scale;
+  }, [placement, scale]);
+  const camera = useThree((s) => s.camera);
 
   function handlePlace() {
     if (!hasHit) return;
@@ -201,6 +208,93 @@ function ARScene({ src }: { src: string }) {
     setScale((s) => Math.min(3, Math.max(0.2, s * factor)));
   }
 
+  // One-finger drag repositions the placed model along the floor; two-finger
+  // pinch rescales it. Both gestures are captured as raw touches on a
+  // full-screen layer inside the WebXR dom-overlay (the standard way to get
+  // real interactive HTML/touch handling on top of the AR camera feed) and
+  // re-baseline every time the number of active fingers changes, so lifting
+  // or adding a finger mid-gesture never causes a jump.
+  const gestureRef = useRef<{
+    mode: "none" | "drag" | "pinch";
+    touches: { x: number; y: number }[];
+    startPosition: THREE.Vector3;
+    startScale: number;
+    startDistance: number;
+  }>({ mode: "none", touches: [], startPosition: new THREE.Vector3(), startScale: 1, startDistance: 0 });
+
+  function readTouches(e: React.TouchEvent<HTMLDivElement>) {
+    return Array.from(e.touches).map((t) => ({ x: t.clientX, y: t.clientY }));
+  }
+
+  function touchDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function beginGesture(touches: { x: number; y: number }[]) {
+    const current = placementRef.current;
+    if (!current || touches.length === 0) {
+      gestureRef.current = { ...gestureRef.current, mode: "none", touches: [] };
+      return;
+    }
+    gestureRef.current = {
+      mode: touches.length >= 2 ? "pinch" : "drag",
+      touches,
+      startPosition: current.position.clone(),
+      startScale: scaleRef.current,
+      startDistance: touches.length >= 2 ? touchDistance(touches[0], touches[1]) : 0,
+    };
+  }
+
+  function handleGestureStart(e: React.TouchEvent<HTMLDivElement>) {
+    beginGesture(readTouches(e));
+  }
+
+  function handleGestureEnd(e: React.TouchEvent<HTMLDivElement>) {
+    beginGesture(readTouches(e));
+  }
+
+  function handleGestureMove(e: React.TouchEvent<HTMLDivElement>) {
+    const g = gestureRef.current;
+    const current = placementRef.current;
+    if (g.mode === "none" || !current) return;
+    const touches = readTouches(e);
+    if (touches.length !== g.touches.length) {
+      // Finger count changed mid-gesture (e.g. one lifted during a pinch) —
+      // re-baseline from here instead of computing a delta across the jump.
+      beginGesture(touches);
+      return;
+    }
+
+    if (g.mode === "pinch" && touches.length >= 2) {
+      const distance = touchDistance(touches[0], touches[1]);
+      if (g.startDistance > 0) {
+        const factor = distance / g.startDistance;
+        setScale(Math.min(3, Math.max(0.2, g.startScale * factor)));
+      }
+    } else if (g.mode === "drag" && touches.length === 1) {
+      const dx = touches[0].x - g.touches[0].x;
+      const dy = touches[0].y - g.touches[0].y;
+
+      // Drag is expressed relative to the phone's current facing direction
+      // (camera right/forward projected onto the floor), not raw screen
+      // axes, so it always tracks the model in the direction the customer
+      // drags regardless of which way they're standing. Sensitivity is
+      // normalized to screen width so it feels consistent across phones.
+      const metersPerPixel = 2 / window.innerWidth;
+      const forward = new THREE.Vector3();
+      camera.getWorldDirection(forward);
+      forward.y = 0;
+      if (forward.lengthSq() > 1e-6) forward.normalize();
+      const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+
+      const nextPosition = g.startPosition
+        .clone()
+        .addScaledVector(right, dx * metersPerPixel)
+        .addScaledVector(forward, -dy * metersPerPixel);
+      setPlacement({ position: nextPosition, quaternion: current.quaternion });
+    }
+  }
+
   return (
     <>
       <ambientLight intensity={0.9} />
@@ -215,60 +309,82 @@ function ARScene({ src }: { src: string }) {
       )}
 
       <XRDomOverlay>
-        <div className="pointer-events-none fixed inset-0 flex flex-col justify-between p-4">
-          <div className="pointer-events-auto flex justify-end">
-            <button
-              type="button"
-              onClick={() => xrStore.getState().session?.end()}
-              aria-label="Exit AR"
-              className="grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur-md active:bg-black/70"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+        <div className="fixed inset-0">
+          {/* Gesture layer: full-screen, sits beneath the button rows in
+              paint order so buttons still get their own taps, but the rest
+              of the screen is a real touch surface for drag/pinch on the
+              placed model. touch-none stops the browser's own pinch-zoom /
+              scroll gestures from fighting our handlers. */}
+          {placement && (
+            <div
+              className="absolute inset-0 touch-none"
+              onTouchStart={handleGestureStart}
+              onTouchMove={handleGestureMove}
+              onTouchEnd={handleGestureEnd}
+              onTouchCancel={handleGestureEnd}
+            />
+          )}
 
-          <div className="pointer-events-auto flex flex-col items-center gap-3 pb-4">
-            {!placement ? (
-              <>
-                <p className="rounded-full bg-black/55 px-3 py-1.5 text-center text-xs font-medium text-white backdrop-blur-md">
-                  {hasHit ? "Tap Place to set it down" : "Slowly move your phone to scan the floor or tabletop"}
-                </p>
-                <button
-                  type="button"
-                  onClick={handlePlace}
-                  disabled={!hasHit}
-                  className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-lg shadow-black/20 disabled:opacity-40"
-                >
-                  Place here
-                </button>
-              </>
-            ) : (
-              <div className="flex items-center gap-2 rounded-full bg-black/55 p-1.5 backdrop-blur-md">
-                <button
-                  type="button"
-                  onClick={() => adjustScale(0.9)}
-                  aria-label="Smaller"
-                  className="grid h-9 w-9 place-items-center rounded-full text-white active:bg-white/20"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleMove}
-                  className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-zinc-900"
-                >
-                  <Move className="h-3.5 w-3.5" /> Move
-                </button>
-                <button
-                  type="button"
-                  onClick={() => adjustScale(1.1)}
-                  aria-label="Bigger"
-                  className="grid h-9 w-9 place-items-center rounded-full text-white active:bg-white/20"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+          <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-4">
+            <div className="pointer-events-auto flex justify-end">
+              <button
+                type="button"
+                onClick={() => xrStore.getState().session?.end()}
+                aria-label="Exit AR"
+                className="grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur-md active:bg-black/70"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="pointer-events-auto flex flex-col items-center gap-3 pb-4">
+              {!placement ? (
+                <>
+                  <p className="rounded-full bg-black/55 px-3 py-1.5 text-center text-xs font-medium text-white backdrop-blur-md">
+                    {hasHit ? "Tap Place to set it down" : "Slowly move your phone to scan the floor or tabletop"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handlePlace}
+                    disabled={!hasHit}
+                    className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-lg shadow-black/20 disabled:opacity-40"
+                  >
+                    Place here
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="rounded-full bg-black/55 px-3 py-1.5 text-center text-xs font-medium text-white backdrop-blur-md">
+                    Drag to move · pinch to resize
+                  </p>
+                  <div className="flex items-center gap-2 rounded-full bg-black/55 p-1.5 backdrop-blur-md">
+                    <button
+                      type="button"
+                      onClick={() => adjustScale(0.9)}
+                      aria-label="Smaller"
+                      className="grid h-9 w-9 place-items-center rounded-full text-white active:bg-white/20"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleMove}
+                      className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-zinc-900"
+                    >
+                      <Move className="h-3.5 w-3.5" /> Move
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => adjustScale(1.1)}
+                      aria-label="Bigger"
+                      className="grid h-9 w-9 place-items-center rounded-full text-white active:bg-white/20"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </XRDomOverlay>
