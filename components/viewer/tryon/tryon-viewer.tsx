@@ -101,35 +101,37 @@ export function TryOnViewer({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black">
-      {streaming && box && (
-        <>
-          <video
-            ref={videoRef}
-            muted
-            playsInline
-            style={{ width: box.width, height: box.height }}
-            className="pointer-events-none absolute"
-          />
-          <div className="absolute" style={{ width: box.width, height: box.height }}>
-            <Canvas gl={{ alpha: true, antialias: true }} camera={{ fov: CAMERA_FOV_DEG, position: [0, 0, 0] }}>
-              <TryOnScene
-                anchor={anchor}
-                src={src}
-                videoRef={videoRef}
-                enabled={streaming}
-                ukSize={ukSize}
-                onStatusChange={setTrackingStatus}
-              />
-            </Canvas>
-          </div>
-        </>
-      )}
+      {/* A single, permanently-mounted <video> element — never conditionally
+          swapped for a different JSX node. start() attaches the camera
+          stream to whatever videoRef.current is at the moment the user taps
+          "Start Try-On", which is always this same DOM node; if this were
+          two different <video> elements toggled by a condition (one hidden,
+          one shown once the letterbox size is known), React would unmount
+          the stream-attached node and mount a fresh, empty one the instant
+          `box` became available — the visible video would then never have a
+          srcObject, and the canvas overlay would have nothing to track
+          against. Only the CSS (size/visibility) reacts to `box`. */}
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        style={streaming && box ? { width: box.width, height: box.height } : { width: 0, height: 0 }}
+        className={streaming && box ? "pointer-events-none absolute" : "hidden"}
+      />
 
-      {/* The <video> element must exist before getUserMedia's stream is
-          attached (start() reads videoRef.current), so it's always mounted
-          — just hidden off-box until we know the letterbox size. */}
-      {(!streaming || !box) && (
-        <video ref={videoRef} muted playsInline className="hidden" />
+      {streaming && box && (
+        <div className="absolute" style={{ width: box.width, height: box.height }}>
+          <Canvas gl={{ alpha: true, antialias: true }} camera={{ fov: CAMERA_FOV_DEG, position: [0, 0, 0] }}>
+            <TryOnScene
+              anchor={anchor}
+              src={src}
+              videoRef={videoRef}
+              enabled={streaming}
+              ukSize={ukSize}
+              onStatusChange={setTrackingStatus}
+            />
+          </Canvas>
+        </div>
       )}
 
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-4">
@@ -153,6 +155,12 @@ export function TryOnViewer({
           )}
         </div>
       </div>
+
+      {streaming && !box && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black text-white">
+          <p className="text-sm font-medium">Preparing camera preview…</p>
+        </div>
+      )}
 
       {!streaming && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center text-white">
