@@ -32,9 +32,9 @@ export type UserMinAggregateOutputType = {
   image: string | null
   emailVerified: Date | null
   role: $Enums.Role | null
-  suspendedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
+  suspendedAt: Date | null
 }
 
 export type UserMaxAggregateOutputType = {
@@ -45,9 +45,9 @@ export type UserMaxAggregateOutputType = {
   image: string | null
   emailVerified: Date | null
   role: $Enums.Role | null
-  suspendedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
+  suspendedAt: Date | null
 }
 
 export type UserCountAggregateOutputType = {
@@ -58,9 +58,9 @@ export type UserCountAggregateOutputType = {
   image: number
   emailVerified: number
   role: number
-  suspendedAt: number
   createdAt: number
   updatedAt: number
+  suspendedAt: number
   _all: number
 }
 
@@ -73,9 +73,9 @@ export type UserMinAggregateInputType = {
   image?: true
   emailVerified?: true
   role?: true
-  suspendedAt?: true
   createdAt?: true
   updatedAt?: true
+  suspendedAt?: true
 }
 
 export type UserMaxAggregateInputType = {
@@ -86,9 +86,9 @@ export type UserMaxAggregateInputType = {
   image?: true
   emailVerified?: true
   role?: true
-  suspendedAt?: true
   createdAt?: true
   updatedAt?: true
+  suspendedAt?: true
 }
 
 export type UserCountAggregateInputType = {
@@ -99,9 +99,9 @@ export type UserCountAggregateInputType = {
   image?: true
   emailVerified?: true
   role?: true
-  suspendedAt?: true
   createdAt?: true
   updatedAt?: true
+  suspendedAt?: true
   _all?: true
 }
 
@@ -185,9 +185,9 @@ export type UserGroupByOutputType = {
   image: string | null
   emailVerified: Date | null
   role: $Enums.Role
-  suspendedAt: Date | null
   createdAt: Date
   updatedAt: Date
+  suspendedAt: Date | null
   _count: UserCountAggregateOutputType | null
   _min: UserMinAggregateOutputType | null
   _max: UserMaxAggregateOutputType | null
@@ -219,15 +219,15 @@ export type UserWhereInput = {
   image?: Prisma.StringNullableFilter<"User"> | string | null
   emailVerified?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   role?: Prisma.EnumRoleFilter<"User"> | $Enums.Role
-  suspendedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
+  suspendedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   accounts?: Prisma.AccountListRelationFilter
+  receivedMessages?: Prisma.MessageListRelationFilter
+  sentMessages?: Prisma.MessageListRelationFilter
+  orders?: Prisma.OrderListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
   vendor?: Prisma.XOR<Prisma.VendorNullableScalarRelationFilter, Prisma.VendorWhereInput> | null
-  orders?: Prisma.OrderListRelationFilter
-  sentMessages?: Prisma.MessageListRelationFilter
-  receivedMessages?: Prisma.MessageListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -238,15 +238,15 @@ export type UserOrderByWithRelationInput = {
   image?: Prisma.SortOrderInput | Prisma.SortOrder
   emailVerified?: Prisma.SortOrderInput | Prisma.SortOrder
   role?: Prisma.SortOrder
-  suspendedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  suspendedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   accounts?: Prisma.AccountOrderByRelationAggregateInput
+  receivedMessages?: Prisma.MessageOrderByRelationAggregateInput
+  sentMessages?: Prisma.MessageOrderByRelationAggregateInput
+  orders?: Prisma.OrderOrderByRelationAggregateInput
   sessions?: Prisma.SessionOrderByRelationAggregateInput
   vendor?: Prisma.VendorOrderByWithRelationInput
-  orders?: Prisma.OrderOrderByRelationAggregateInput
-  sentMessages?: Prisma.MessageOrderByRelationAggregateInput
-  receivedMessages?: Prisma.MessageOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -260,15 +260,15 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   image?: Prisma.StringNullableFilter<"User"> | string | null
   emailVerified?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   role?: Prisma.EnumRoleFilter<"User"> | $Enums.Role
-  suspendedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
+  suspendedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   accounts?: Prisma.AccountListRelationFilter
+  receivedMessages?: Prisma.MessageListRelationFilter
+  sentMessages?: Prisma.MessageListRelationFilter
+  orders?: Prisma.OrderListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
   vendor?: Prisma.XOR<Prisma.VendorNullableScalarRelationFilter, Prisma.VendorWhereInput> | null
-  orders?: Prisma.OrderListRelationFilter
-  sentMessages?: Prisma.MessageListRelationFilter
-  receivedMessages?: Prisma.MessageListRelationFilter
 }, "id" | "email">
 
 export type UserOrderByWithAggregationInput = {
@@ -279,9 +279,9 @@ export type UserOrderByWithAggregationInput = {
   image?: Prisma.SortOrderInput | Prisma.SortOrder
   emailVerified?: Prisma.SortOrderInput | Prisma.SortOrder
   role?: Prisma.SortOrder
-  suspendedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  suspendedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.UserCountOrderByAggregateInput
   _max?: Prisma.UserMaxOrderByAggregateInput
   _min?: Prisma.UserMinOrderByAggregateInput
@@ -298,9 +298,9 @@ export type UserScalarWhereWithAggregatesInput = {
   image?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   emailVerified?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   role?: Prisma.EnumRoleWithAggregatesFilter<"User"> | $Enums.Role
-  suspendedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"User"> | Date | string
+  suspendedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
 }
 
 export type UserCreateInput = {
@@ -311,15 +311,15 @@ export type UserCreateInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   vendor?: Prisma.VendorCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
-  receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -330,15 +330,15 @@ export type UserUncheckedCreateInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   vendor?: Prisma.VendorUncheckedCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
-  receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
 }
 
 export type UserUpdateInput = {
@@ -349,15 +349,15 @@ export type UserUpdateInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   vendor?: Prisma.VendorUpdateOneWithoutUserNestedInput
-  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
-  receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -368,15 +368,15 @@ export type UserUncheckedUpdateInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   vendor?: Prisma.VendorUncheckedUpdateOneWithoutUserNestedInput
-  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
-  receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -387,9 +387,9 @@ export type UserCreateManyInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
 }
 
 export type UserUpdateManyMutationInput = {
@@ -400,9 +400,9 @@ export type UserUpdateManyMutationInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type UserUncheckedUpdateManyInput = {
@@ -413,9 +413,9 @@ export type UserUncheckedUpdateManyInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type UserCountOrderByAggregateInput = {
@@ -426,9 +426,9 @@ export type UserCountOrderByAggregateInput = {
   image?: Prisma.SortOrder
   emailVerified?: Prisma.SortOrder
   role?: Prisma.SortOrder
-  suspendedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  suspendedAt?: Prisma.SortOrder
 }
 
 export type UserMaxOrderByAggregateInput = {
@@ -439,9 +439,9 @@ export type UserMaxOrderByAggregateInput = {
   image?: Prisma.SortOrder
   emailVerified?: Prisma.SortOrder
   role?: Prisma.SortOrder
-  suspendedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  suspendedAt?: Prisma.SortOrder
 }
 
 export type UserMinOrderByAggregateInput = {
@@ -452,9 +452,9 @@ export type UserMinOrderByAggregateInput = {
   image?: Prisma.SortOrder
   emailVerified?: Prisma.SortOrder
   role?: Prisma.SortOrder
-  suspendedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  suspendedAt?: Prisma.SortOrder
 }
 
 export type UserScalarRelationFilter = {
@@ -538,24 +538,16 @@ export type UserUpdateOneRequiredWithoutOrdersNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutOrdersInput, Prisma.UserUpdateWithoutOrdersInput>, Prisma.UserUncheckedUpdateWithoutOrdersInput>
 }
 
-export type UserCreateNestedOneWithoutSentMessagesInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutSentMessagesInput, Prisma.UserUncheckedCreateWithoutSentMessagesInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutSentMessagesInput
-  connect?: Prisma.UserWhereUniqueInput
-}
-
 export type UserCreateNestedOneWithoutReceivedMessagesInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutReceivedMessagesInput, Prisma.UserUncheckedCreateWithoutReceivedMessagesInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutReceivedMessagesInput
   connect?: Prisma.UserWhereUniqueInput
 }
 
-export type UserUpdateOneRequiredWithoutSentMessagesNestedInput = {
+export type UserCreateNestedOneWithoutSentMessagesInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutSentMessagesInput, Prisma.UserUncheckedCreateWithoutSentMessagesInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutSentMessagesInput
-  upsert?: Prisma.UserUpsertWithoutSentMessagesInput
   connect?: Prisma.UserWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutSentMessagesInput, Prisma.UserUpdateWithoutSentMessagesInput>, Prisma.UserUncheckedUpdateWithoutSentMessagesInput>
 }
 
 export type UserUpdateOneRequiredWithoutReceivedMessagesNestedInput = {
@@ -566,6 +558,14 @@ export type UserUpdateOneRequiredWithoutReceivedMessagesNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutReceivedMessagesInput, Prisma.UserUpdateWithoutReceivedMessagesInput>, Prisma.UserUncheckedUpdateWithoutReceivedMessagesInput>
 }
 
+export type UserUpdateOneRequiredWithoutSentMessagesNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutSentMessagesInput, Prisma.UserUncheckedCreateWithoutSentMessagesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutSentMessagesInput
+  upsert?: Prisma.UserUpsertWithoutSentMessagesInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutSentMessagesInput, Prisma.UserUpdateWithoutSentMessagesInput>, Prisma.UserUncheckedUpdateWithoutSentMessagesInput>
+}
+
 export type UserCreateWithoutAccountsInput = {
   id?: string
   email: string
@@ -574,14 +574,14 @@ export type UserCreateWithoutAccountsInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
+  receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   vendor?: Prisma.VendorCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
-  receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
 }
 
 export type UserUncheckedCreateWithoutAccountsInput = {
@@ -592,14 +592,14 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
+  receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   vendor?: Prisma.VendorUncheckedCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
-  receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
 }
 
 export type UserCreateOrConnectWithoutAccountsInput = {
@@ -626,14 +626,14 @@ export type UserUpdateWithoutAccountsInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   vendor?: Prisma.VendorUpdateOneWithoutUserNestedInput
-  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
-  receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAccountsInput = {
@@ -644,14 +644,14 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   vendor?: Prisma.VendorUncheckedUpdateOneWithoutUserNestedInput
-  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
-  receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
 }
 
 export type UserCreateWithoutSessionsInput = {
@@ -662,14 +662,14 @@ export type UserCreateWithoutSessionsInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
-  vendor?: Prisma.VendorCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
   receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
+  vendor?: Prisma.VendorCreateNestedOneWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
@@ -680,14 +680,14 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
-  vendor?: Prisma.VendorUncheckedCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
   receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
+  vendor?: Prisma.VendorUncheckedCreateNestedOneWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -714,14 +714,14 @@ export type UserUpdateWithoutSessionsInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
-  vendor?: Prisma.VendorUpdateOneWithoutUserNestedInput
-  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
   receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
+  vendor?: Prisma.VendorUpdateOneWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
@@ -732,14 +732,14 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
-  vendor?: Prisma.VendorUncheckedUpdateOneWithoutUserNestedInput
-  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
   receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
+  vendor?: Prisma.VendorUncheckedUpdateOneWithoutUserNestedInput
 }
 
 export type UserCreateWithoutVendorInput = {
@@ -750,14 +750,14 @@ export type UserCreateWithoutVendorInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
-  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
-  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
   receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutVendorInput = {
@@ -768,14 +768,14 @@ export type UserUncheckedCreateWithoutVendorInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
-  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
-  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
   receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutVendorInput = {
@@ -802,14 +802,14 @@ export type UserUpdateWithoutVendorInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
-  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
-  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
   receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutVendorInput = {
@@ -820,14 +820,14 @@ export type UserUncheckedUpdateWithoutVendorInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
-  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
-  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
   receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutOrdersInput = {
@@ -838,14 +838,14 @@ export type UserCreateWithoutOrdersInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   vendor?: Prisma.VendorCreateNestedOneWithoutUserInput
-  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
-  receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
 }
 
 export type UserUncheckedCreateWithoutOrdersInput = {
@@ -856,14 +856,14 @@ export type UserUncheckedCreateWithoutOrdersInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
+  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   vendor?: Prisma.VendorUncheckedCreateNestedOneWithoutUserInput
-  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
-  receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
 }
 
 export type UserCreateOrConnectWithoutOrdersInput = {
@@ -890,14 +890,14 @@ export type UserUpdateWithoutOrdersInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   vendor?: Prisma.VendorUpdateOneWithoutUserNestedInput
-  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
-  receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
 }
 
 export type UserUncheckedUpdateWithoutOrdersInput = {
@@ -908,55 +908,14 @@ export type UserUncheckedUpdateWithoutOrdersInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
+  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   vendor?: Prisma.VendorUncheckedUpdateOneWithoutUserNestedInput
-  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
-  receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
-}
-
-export type UserCreateWithoutSentMessagesInput = {
-  id?: string
-  email: string
-  passwordHash?: string | null
-  name?: string | null
-  image?: string | null
-  emailVerified?: Date | string | null
-  role?: $Enums.Role
-  suspendedAt?: Date | string | null
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
-  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
-  vendor?: Prisma.VendorCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
-  receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
-}
-
-export type UserUncheckedCreateWithoutSentMessagesInput = {
-  id?: string
-  email: string
-  passwordHash?: string | null
-  name?: string | null
-  image?: string | null
-  emailVerified?: Date | string | null
-  role?: $Enums.Role
-  suspendedAt?: Date | string | null
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
-  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
-  vendor?: Prisma.VendorUncheckedCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
-  receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
-}
-
-export type UserCreateOrConnectWithoutSentMessagesInput = {
-  where: Prisma.UserWhereUniqueInput
-  create: Prisma.XOR<Prisma.UserCreateWithoutSentMessagesInput, Prisma.UserUncheckedCreateWithoutSentMessagesInput>
 }
 
 export type UserCreateWithoutReceivedMessagesInput = {
@@ -967,14 +926,14 @@ export type UserCreateWithoutReceivedMessagesInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   vendor?: Prisma.VendorCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageCreateNestedManyWithoutSenderInput
 }
 
 export type UserUncheckedCreateWithoutReceivedMessagesInput = {
@@ -985,14 +944,14 @@ export type UserUncheckedCreateWithoutReceivedMessagesInput = {
   image?: string | null
   emailVerified?: Date | string | null
   role?: $Enums.Role
-  suspendedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  suspendedAt?: Date | string | null
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
+  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   vendor?: Prisma.VendorUncheckedCreateNestedOneWithoutUserInput
-  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
-  sentMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutSenderInput
 }
 
 export type UserCreateOrConnectWithoutReceivedMessagesInput = {
@@ -1000,51 +959,45 @@ export type UserCreateOrConnectWithoutReceivedMessagesInput = {
   create: Prisma.XOR<Prisma.UserCreateWithoutReceivedMessagesInput, Prisma.UserUncheckedCreateWithoutReceivedMessagesInput>
 }
 
-export type UserUpsertWithoutSentMessagesInput = {
-  update: Prisma.XOR<Prisma.UserUpdateWithoutSentMessagesInput, Prisma.UserUncheckedUpdateWithoutSentMessagesInput>
+export type UserCreateWithoutSentMessagesInput = {
+  id?: string
+  email: string
+  passwordHash?: string | null
+  name?: string | null
+  image?: string | null
+  emailVerified?: Date | string | null
+  role?: $Enums.Role
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  suspendedAt?: Date | string | null
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  receivedMessages?: Prisma.MessageCreateNestedManyWithoutReceiverInput
+  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  vendor?: Prisma.VendorCreateNestedOneWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutSentMessagesInput = {
+  id?: string
+  email: string
+  passwordHash?: string | null
+  name?: string | null
+  image?: string | null
+  emailVerified?: Date | string | null
+  role?: $Enums.Role
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  suspendedAt?: Date | string | null
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  receivedMessages?: Prisma.MessageUncheckedCreateNestedManyWithoutReceiverInput
+  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  vendor?: Prisma.VendorUncheckedCreateNestedOneWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutSentMessagesInput = {
+  where: Prisma.UserWhereUniqueInput
   create: Prisma.XOR<Prisma.UserCreateWithoutSentMessagesInput, Prisma.UserUncheckedCreateWithoutSentMessagesInput>
-  where?: Prisma.UserWhereInput
-}
-
-export type UserUpdateToOneWithWhereWithoutSentMessagesInput = {
-  where?: Prisma.UserWhereInput
-  data: Prisma.XOR<Prisma.UserUpdateWithoutSentMessagesInput, Prisma.UserUncheckedUpdateWithoutSentMessagesInput>
-}
-
-export type UserUpdateWithoutSentMessagesInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
-  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
-  vendor?: Prisma.VendorUpdateOneWithoutUserNestedInput
-  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
-  receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
-}
-
-export type UserUncheckedUpdateWithoutSentMessagesInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
-  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
-  vendor?: Prisma.VendorUncheckedUpdateOneWithoutUserNestedInput
-  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
-  receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
 }
 
 export type UserUpsertWithoutReceivedMessagesInput = {
@@ -1066,14 +1019,14 @@ export type UserUpdateWithoutReceivedMessagesInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   vendor?: Prisma.VendorUpdateOneWithoutUserNestedInput
-  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUpdateManyWithoutSenderNestedInput
 }
 
 export type UserUncheckedUpdateWithoutReceivedMessagesInput = {
@@ -1084,14 +1037,61 @@ export type UserUncheckedUpdateWithoutReceivedMessagesInput = {
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
-  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
+  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   vendor?: Prisma.VendorUncheckedUpdateOneWithoutUserNestedInput
+}
+
+export type UserUpsertWithoutSentMessagesInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutSentMessagesInput, Prisma.UserUncheckedUpdateWithoutSentMessagesInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutSentMessagesInput, Prisma.UserUncheckedCreateWithoutSentMessagesInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutSentMessagesInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutSentMessagesInput, Prisma.UserUncheckedUpdateWithoutSentMessagesInput>
+}
+
+export type UserUpdateWithoutSentMessagesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  receivedMessages?: Prisma.MessageUpdateManyWithoutReceiverNestedInput
+  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  vendor?: Prisma.VendorUpdateOneWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutSentMessagesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  suspendedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  receivedMessages?: Prisma.MessageUncheckedUpdateManyWithoutReceiverNestedInput
   orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
-  sentMessages?: Prisma.MessageUncheckedUpdateManyWithoutSenderNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  vendor?: Prisma.VendorUncheckedUpdateOneWithoutUserNestedInput
 }
 
 
@@ -1101,18 +1101,18 @@ export type UserUncheckedUpdateWithoutReceivedMessagesInput = {
 
 export type UserCountOutputType = {
   accounts: number
-  sessions: number
-  orders: number
-  sentMessages: number
   receivedMessages: number
+  sentMessages: number
+  orders: number
+  sessions: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   accounts?: boolean | UserCountOutputTypeCountAccountsArgs
-  sessions?: boolean | UserCountOutputTypeCountSessionsArgs
-  orders?: boolean | UserCountOutputTypeCountOrdersArgs
-  sentMessages?: boolean | UserCountOutputTypeCountSentMessagesArgs
   receivedMessages?: boolean | UserCountOutputTypeCountReceivedMessagesArgs
+  sentMessages?: boolean | UserCountOutputTypeCountSentMessagesArgs
+  orders?: boolean | UserCountOutputTypeCountOrdersArgs
+  sessions?: boolean | UserCountOutputTypeCountSessionsArgs
 }
 
 /**
@@ -1135,15 +1135,8 @@ export type UserCountOutputTypeCountAccountsArgs<ExtArgs extends runtime.Types.E
 /**
  * UserCountOutputType without action
  */
-export type UserCountOutputTypeCountSessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.SessionWhereInput
-}
-
-/**
- * UserCountOutputType without action
- */
-export type UserCountOutputTypeCountOrdersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.OrderWhereInput
+export type UserCountOutputTypeCountReceivedMessagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.MessageWhereInput
 }
 
 /**
@@ -1156,8 +1149,15 @@ export type UserCountOutputTypeCountSentMessagesArgs<ExtArgs extends runtime.Typ
 /**
  * UserCountOutputType without action
  */
-export type UserCountOutputTypeCountReceivedMessagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.MessageWhereInput
+export type UserCountOutputTypeCountOrdersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.OrderWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountSessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SessionWhereInput
 }
 
 
@@ -1169,15 +1169,15 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   image?: boolean
   emailVerified?: boolean
   role?: boolean
-  suspendedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  suspendedAt?: boolean
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
+  receivedMessages?: boolean | Prisma.User$receivedMessagesArgs<ExtArgs>
+  sentMessages?: boolean | Prisma.User$sentMessagesArgs<ExtArgs>
+  orders?: boolean | Prisma.User$ordersArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   vendor?: boolean | Prisma.User$vendorArgs<ExtArgs>
-  orders?: boolean | Prisma.User$ordersArgs<ExtArgs>
-  sentMessages?: boolean | Prisma.User$sentMessagesArgs<ExtArgs>
-  receivedMessages?: boolean | Prisma.User$receivedMessagesArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -1189,9 +1189,9 @@ export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   image?: boolean
   emailVerified?: boolean
   role?: boolean
-  suspendedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  suspendedAt?: boolean
 }, ExtArgs["result"]["user"]>
 
 export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -1202,9 +1202,9 @@ export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   image?: boolean
   emailVerified?: boolean
   role?: boolean
-  suspendedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  suspendedAt?: boolean
 }, ExtArgs["result"]["user"]>
 
 export type UserSelectScalar = {
@@ -1215,19 +1215,19 @@ export type UserSelectScalar = {
   image?: boolean
   emailVerified?: boolean
   role?: boolean
-  suspendedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  suspendedAt?: boolean
 }
 
-export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "passwordHash" | "name" | "image" | "emailVerified" | "role" | "suspendedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
+export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "passwordHash" | "name" | "image" | "emailVerified" | "role" | "createdAt" | "updatedAt" | "suspendedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
+  receivedMessages?: boolean | Prisma.User$receivedMessagesArgs<ExtArgs>
+  sentMessages?: boolean | Prisma.User$sentMessagesArgs<ExtArgs>
+  orders?: boolean | Prisma.User$ordersArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   vendor?: boolean | Prisma.User$vendorArgs<ExtArgs>
-  orders?: boolean | Prisma.User$ordersArgs<ExtArgs>
-  sentMessages?: boolean | Prisma.User$sentMessagesArgs<ExtArgs>
-  receivedMessages?: boolean | Prisma.User$receivedMessagesArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -1237,11 +1237,11 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   name: "User"
   objects: {
     accounts: Prisma.$AccountPayload<ExtArgs>[]
+    receivedMessages: Prisma.$MessagePayload<ExtArgs>[]
+    sentMessages: Prisma.$MessagePayload<ExtArgs>[]
+    orders: Prisma.$OrderPayload<ExtArgs>[]
     sessions: Prisma.$SessionPayload<ExtArgs>[]
     vendor: Prisma.$VendorPayload<ExtArgs> | null
-    orders: Prisma.$OrderPayload<ExtArgs>[]
-    sentMessages: Prisma.$MessagePayload<ExtArgs>[]
-    receivedMessages: Prisma.$MessagePayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1251,9 +1251,9 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     image: string | null
     emailVerified: Date | null
     role: $Enums.Role
-    suspendedAt: Date | null
     createdAt: Date
     updatedAt: Date
+    suspendedAt: Date | null
   }, ExtArgs["result"]["user"]>
   composites: {}
 }
@@ -1649,11 +1649,11 @@ readonly fields: UserFieldRefs;
 export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   accounts<T extends Prisma.User$accountsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$accountsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AccountPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  receivedMessages<T extends Prisma.User$receivedMessagesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$receivedMessagesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MessagePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  sentMessages<T extends Prisma.User$sentMessagesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sentMessagesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MessagePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  orders<T extends Prisma.User$ordersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$ordersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrderPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   sessions<T extends Prisma.User$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   vendor<T extends Prisma.User$vendorArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$vendorArgs<ExtArgs>>): Prisma.Prisma__VendorClient<runtime.Types.Result.GetResult<Prisma.$VendorPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
-  orders<T extends Prisma.User$ordersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$ordersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrderPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  sentMessages<T extends Prisma.User$sentMessagesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sentMessagesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MessagePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  receivedMessages<T extends Prisma.User$receivedMessagesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$receivedMessagesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MessagePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1690,9 +1690,9 @@ export interface UserFieldRefs {
   readonly image: Prisma.FieldRef<"User", 'String'>
   readonly emailVerified: Prisma.FieldRef<"User", 'DateTime'>
   readonly role: Prisma.FieldRef<"User", 'Role'>
-  readonly suspendedAt: Prisma.FieldRef<"User", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"User", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"User", 'DateTime'>
+  readonly suspendedAt: Prisma.FieldRef<"User", 'DateTime'>
 }
     
 
@@ -2110,6 +2110,78 @@ export type User$accountsArgs<ExtArgs extends runtime.Types.Extensions.InternalA
 }
 
 /**
+ * User.receivedMessages
+ */
+export type User$receivedMessagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Message
+   */
+  select?: Prisma.MessageSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Message
+   */
+  omit?: Prisma.MessageOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.MessageInclude<ExtArgs> | null
+  where?: Prisma.MessageWhereInput
+  orderBy?: Prisma.MessageOrderByWithRelationInput | Prisma.MessageOrderByWithRelationInput[]
+  cursor?: Prisma.MessageWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.MessageScalarFieldEnum | Prisma.MessageScalarFieldEnum[]
+}
+
+/**
+ * User.sentMessages
+ */
+export type User$sentMessagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Message
+   */
+  select?: Prisma.MessageSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Message
+   */
+  omit?: Prisma.MessageOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.MessageInclude<ExtArgs> | null
+  where?: Prisma.MessageWhereInput
+  orderBy?: Prisma.MessageOrderByWithRelationInput | Prisma.MessageOrderByWithRelationInput[]
+  cursor?: Prisma.MessageWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.MessageScalarFieldEnum | Prisma.MessageScalarFieldEnum[]
+}
+
+/**
+ * User.orders
+ */
+export type User$ordersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Order
+   */
+  select?: Prisma.OrderSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Order
+   */
+  omit?: Prisma.OrderOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OrderInclude<ExtArgs> | null
+  where?: Prisma.OrderWhereInput
+  orderBy?: Prisma.OrderOrderByWithRelationInput | Prisma.OrderOrderByWithRelationInput[]
+  cursor?: Prisma.OrderWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.OrderScalarFieldEnum | Prisma.OrderScalarFieldEnum[]
+}
+
+/**
  * User.sessions
  */
 export type User$sessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -2150,78 +2222,6 @@ export type User$vendorArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
    */
   include?: Prisma.VendorInclude<ExtArgs> | null
   where?: Prisma.VendorWhereInput
-}
-
-/**
- * User.orders
- */
-export type User$ordersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the Order
-   */
-  select?: Prisma.OrderSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the Order
-   */
-  omit?: Prisma.OrderOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.OrderInclude<ExtArgs> | null
-  where?: Prisma.OrderWhereInput
-  orderBy?: Prisma.OrderOrderByWithRelationInput | Prisma.OrderOrderByWithRelationInput[]
-  cursor?: Prisma.OrderWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.OrderScalarFieldEnum | Prisma.OrderScalarFieldEnum[]
-}
-
-/**
- * User.sentMessages
- */
-export type User$sentMessagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the Message
-   */
-  select?: Prisma.MessageSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the Message
-   */
-  omit?: Prisma.MessageOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.MessageInclude<ExtArgs> | null
-  where?: Prisma.MessageWhereInput
-  orderBy?: Prisma.MessageOrderByWithRelationInput | Prisma.MessageOrderByWithRelationInput[]
-  cursor?: Prisma.MessageWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.MessageScalarFieldEnum | Prisma.MessageScalarFieldEnum[]
-}
-
-/**
- * User.receivedMessages
- */
-export type User$receivedMessagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the Message
-   */
-  select?: Prisma.MessageSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the Message
-   */
-  omit?: Prisma.MessageOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.MessageInclude<ExtArgs> | null
-  where?: Prisma.MessageWhereInput
-  orderBy?: Prisma.MessageOrderByWithRelationInput | Prisma.MessageOrderByWithRelationInput[]
-  cursor?: Prisma.MessageWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.MessageScalarFieldEnum | Prisma.MessageScalarFieldEnum[]
 }
 
 /**

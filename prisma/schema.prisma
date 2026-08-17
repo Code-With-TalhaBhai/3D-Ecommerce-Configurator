@@ -103,11 +103,17 @@ model Product {
 }
 
 model Category {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  slug      String    @unique
-  createdAt DateTime  @default(now())
-  products  Product[]
+  id          String       @id @default(cuid())
+  name        String       @unique
+  slug        String       @unique
+  // Drives which AR mode the product detail page launches for every product
+  // under this category: null = existing WebXR "place in room" flow, WRIST /
+  // FOOT = the camera-landmark virtual try-on pipeline. Set once per category
+  // (create-time only, no edit UI) so new categories can opt in without a
+  // code change.
+  tryOnAnchor TryOnAnchor?
+  createdAt   DateTime     @default(now())
+  products    Product[]
 }
 
 model ProductVariant {
@@ -186,6 +192,11 @@ enum ProductStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum TryOnAnchor {
+  WRIST
+  FOOT
 }
 
 enum OrderStatus {

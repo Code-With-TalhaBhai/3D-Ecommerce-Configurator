@@ -27,6 +27,14 @@ export const ProductStatus = {
 export type ProductStatus = (typeof ProductStatus)[keyof typeof ProductStatus]
 
 
+export const TryOnAnchor = {
+  WRIST: 'WRIST',
+  FOOT: 'FOOT'
+} as const
+
+export type TryOnAnchor = (typeof TryOnAnchor)[keyof typeof TryOnAnchor]
+
+
 export const OrderStatus = {
   PENDING: 'PENDING',
   PAID: 'PAID',

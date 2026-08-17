@@ -42,6 +42,7 @@ export default async function AdminCategoriesPage() {
               <tr>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Slug</th>
+                <th className="px-4 py-3">AR mode</th>
                 <th className="px-4 py-3 text-right">Products</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -61,6 +62,13 @@ export default async function AdminCategoriesPage() {
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-zinc-500 dark:text-zinc-400">
                       {c.slug}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">
+                      {c.tryOnAnchor === "WRIST"
+                        ? "Try on — wrist"
+                        : c.tryOnAnchor === "FOOT"
+                          ? "Try on — foot"
+                          : "Place in room"}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
                       {c._count.products}

@@ -22,6 +22,10 @@ const createSchema = z.object({
     .trim()
     .min(2, "Name must be at least 2 characters")
     .max(40, "Name must be 40 characters or fewer"),
+  // Drives which AR mode the product detail page launches for every product
+  // under this category — see components/viewer/ar-launcher.tsx. Create-time
+  // only; categories have no edit action today.
+  tryOnAnchor: z.enum(["WRIST", "FOOT"]).nullable(),
 });
 
 export async function createCategory(
@@ -30,7 +34,11 @@ export async function createCategory(
 ): Promise<CategoryFormState> {
   await requireAdmin();
 
-  const parsed = createSchema.safeParse({ name: formData.get("name") });
+  const rawAnchor = formData.get("tryOnAnchor");
+  const parsed = createSchema.safeParse({
+    name: formData.get("name"),
+    tryOnAnchor: rawAnchor === "WRIST" || rawAnchor === "FOOT" ? rawAnchor : null,
+  });
   if (!parsed.success) {
     return {
       fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]>,
@@ -49,7 +57,7 @@ export async function createCategory(
   });
   if (clash) return { error: "A category with that name already exists." };
 
-  await prisma.category.create({ data: { name, slug } });
+  await prisma.category.create({ data: { name, slug, tryOnAnchor: parsed.data.tryOnAnchor } });
   revalidatePath("/admin/categories");
   revalidatePath("/products");
   return null;

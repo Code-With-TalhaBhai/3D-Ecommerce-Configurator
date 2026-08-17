@@ -31,6 +31,9 @@ async function loadProduct(slug: string) {
           textureUrl: true,
         },
       },
+      category: {
+        select: { slug: true, name: true, tryOnAnchor: true },
+      },
     },
   });
 }
@@ -85,6 +88,11 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
           polyCount: product.polyCount,
           fileSize: product.fileSize,
           vendor: { storeName: product.vendor.storeName, slug: product.vendor.slug },
+          category: {
+            slug: product.category.slug,
+            name: product.category.name,
+            tryOnAnchor: product.category.tryOnAnchor,
+          },
           variants: product.variants.map((v) => ({
             ...v,
             textureUrl: toCdnUrl(v.textureUrl),

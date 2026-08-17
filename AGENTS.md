@@ -52,6 +52,7 @@ The platform replaces static 2D product images with real-time 3D interaction (pa
 - Level of Detail (LOD) support for performance across device tiers
 - Supported browsers: all modern browsers (excludes IE, Safari < 15)
 - **Augmented Reality "place in room"**: on WebXR-capable handheld devices (Android Chrome/Edge on ARCore-class hardware today), a "Place In Room" action opens a camera-passthrough AR session where the customer taps a detected floor/tabletop surface to place a life-size instance of the model, then can reposition, rescale, or rotate it. The AR placement carries over whatever color/finish/vendor-variant the customer had selected in the regular configurator. The entry point is feature-detected and hidden entirely on devices/browsers without WebXR `immersive-ar` support (e.g. iOS Safari) rather than shown and failing.
+- **Virtual try-on** (watches and shoes only): products under a category flagged for try-on (an admin-set `wrist` or `foot` mode per category) show a "Try On" action instead of "Place In Room". It opens the phone's rear camera and uses on-device hand/foot landmark tracking (not WebXR — the WebXR Device API doesn't expose body landmarks) to render the product directly on the customer's wrist or, for shoes, on each detected foot, carrying over the same color/finish/vendor-variant customization as the regular configurator and Room AR. Every other category keeps the unmodified "place in room" flow. Not yet verified on physical AR-capable hardware.
 
 ### 3.4 Multi-Vendor Marketplace
 
@@ -130,7 +131,7 @@ The platform replaces static 2D product images with real-time 3D interaction (pa
 | 3D rendering | React Three Fiber / Three.js |
 | 3D asset format | GLB / GLTF |
 | 3D compression | Draco (Google) |
-| Augmented Reality | WebXR Device API via `@react-three/xr` (hit-test + DOM overlay) |
+| Augmented Reality | WebXR Device API via `@react-three/xr` (hit-test + DOM overlay); virtual try-on via `@mediapipe/tasks-vision` (hand/pose landmark tracking) |
 | State management | Redux Toolkit + RTK Query |
 | Styling | Tailwind CSS |
 | Backend | Next.js API routes + Server Actions |

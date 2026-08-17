@@ -1,9 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Layers, MousePointer2, ScanLine, ShoppingCart } from "lucide-react";
+import { Check, Layers, MousePointer2, ShoppingCart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,7 +26,7 @@ const ControlsPanel = dynamic(
   { ssr: false },
 );
 
-const ARViewer = dynamic(() => import("@/components/viewer/ar-viewer").then((m) => m.ARViewer), {
+const ARLauncher = dynamic(() => import("@/components/viewer/ar-launcher").then((m) => m.ARLauncher), {
   ssr: false,
 });
 
@@ -49,6 +48,7 @@ type Product = {
   polyCount: number | null;
   fileSize: number | null;
   vendor: { storeName: string; slug: string };
+  category: { slug: string; name: string; tryOnAnchor: "WRIST" | "FOOT" | null };
   variants: Variant[];
 };
 
@@ -76,39 +76,10 @@ export function ProductConfigurator({ product }: { product: Product }) {
   const [modelReady, setModelReady] = useState(false);
   const [showLoader, setShowLoader] = useState(true);
   const screenshotterRef = useRef<(() => string | null) | null>(null);
-  const [arSupported, setArSupported] = useState(false);
+  // Which AR mode is currently portaled open (Try On vs Place In Room) —
+  // decided/rendered by <ARLauncher>, see below; this component only needs
+  // to know whether *something* is open, to unmount ConfigurableViewer.
   const [arOpen, setArOpen] = useState(false);
-
-  // Feature-detect WebXR immersive-ar (Android Chrome/ARCore-class devices
-  // today — iOS Safari has no WebXR support, so this resolves false there
-  // and the button never renders rather than showing something that'd fail
-  // to launch). Kept out of the initial bundle: only the tiny navigator.xr
-  // check runs eagerly, the AR viewer itself (and @react-three/xr) loads on
-  // demand via the dynamic import above.
-  useEffect(() => {
-    let cancelled = false;
-    if (process.env.NODE_ENV === "development" && !navigator.xr && !window.isSecureContext) {
-      // The #1 reason this button doesn't show up when testing on a phone:
-      // WebXR requires a secure context, so navigator.xr is undefined on a
-      // plain http://<lan-ip>:3000 dev URL. Use the
-      // "unsafely-treat-insecure-origin-as-secure" chrome://flags override
-      // (Android) or `next dev --experimental-https` to test AR locally.
-      console.info(
-        "[AR] navigator.xr is unavailable on this insecure origin — the \"Place In Room\" button will stay hidden until this page is served over HTTPS (or localhost).",
-      );
-    }
-    navigator.xr
-      ?.isSessionSupported("immersive-ar")
-      .then((supported) => {
-        if (!cancelled) setArSupported(supported);
-      })
-      .catch(() => {
-        if (!cancelled) setArSupported(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     dispatch(resetVariant());
@@ -216,16 +187,12 @@ export function ProductConfigurator({ product }: { product: Product }) {
             <ViewerLoader label="3D model unavailable" />
           ) : null}
 
-          {product.glbUrl && arSupported && modelReady && !arOpen && (
-            <button
-              type="button"
-              onClick={() => setArOpen(true)}
-              className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full border border-zinc-200/80 bg-white/90 px-3 py-1.5 text-[11px] font-medium text-zinc-800 shadow-sm backdrop-blur hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-700/60 dark:bg-zinc-900/90 dark:text-zinc-100"
-            >
-              <ScanLine className="h-3.5 w-3.5" />
-              Place In Room
-            </button>
-          )}
+          <ARLauncher
+            product={{ glbUrl: product.glbUrl, category: product.category }}
+            modelReady={modelReady}
+            open={arOpen}
+            onOpenChange={setArOpen}
+          />
 
           {product.glbUrl && showLoader && (
             <div
@@ -365,9 +332,6 @@ export function ProductConfigurator({ product }: { product: Product }) {
         </dl>
       </aside>
 
-      {arOpen &&
-        product.glbUrl &&
-        createPortal(<ARViewer src={product.glbUrl} onClose={() => setArOpen(false)} />, document.body)}
     </div>
   );
 }

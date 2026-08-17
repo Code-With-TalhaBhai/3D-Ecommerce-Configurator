@@ -1,0 +1,214 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Canvas } from "@react-three/fiber";
+import { X } from "lucide-react";
+
+import { useCameraStream } from "./use-camera-stream";
+import { TryOnScene } from "./tryon-scene";
+import { SizePicker } from "./size-picker";
+import type { AnchorStatus } from "./anchor";
+import { CAMERA_FOV_DEG } from "@/lib/viewer/tryon/constants";
+
+/**
+ * Fits the video's native (camera sensor) aspect ratio inside the viewport
+ * without cropping (`object-contain`, letterboxed rather than `object-cover`
+ * cropped-to-fill). This matters beyond cosmetics: the anchor hooks estimate
+ * position from the video's *raw* pixel coordinates (0..1 normalized to
+ * video.videoWidth/videoHeight), and the transparent <Canvas> camera's aspect
+ * auto-tracks whatever container size it's given. If the video were cropped
+ * to fill the viewport (object-cover) while the canvas stayed sized to the
+ * full viewport, the two aspect ratios would disagree and every placed
+ * model would sit visibly offset from where the landmark math intended.
+ * Sizing both the <video> and the <Canvas> wrapper to this identical
+ * letterboxed box keeps raw-video pixel space and canvas NDC space 1:1.
+ */
+function useLetterboxSize(videoRef: React.RefObject<HTMLVideoElement | null>, active: boolean) {
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    function recompute() {
+      const vw = video?.videoWidth;
+      const vh = video?.videoHeight;
+      if (!vw || !vh) return;
+      const viewportW = window.innerWidth;
+      const viewportH = window.innerHeight;
+      const videoAspect = vw / vh;
+      const viewportAspect = viewportW / viewportH;
+      if (videoAspect > viewportAspect) {
+        setSize({ width: viewportW, height: viewportW / videoAspect });
+      } else {
+        setSize({ width: viewportH * videoAspect, height: viewportH });
+      }
+    }
+
+    recompute();
+    video.addEventListener("loadedmetadata", recompute);
+    window.addEventListener("resize", recompute);
+    return () => {
+      video.removeEventListener("loadedmetadata", recompute);
+      window.removeEventListener("resize", recompute);
+    };
+  }, [active, videoRef]);
+
+  return size;
+}
+
+export function TryOnViewer({
+  src,
+  anchor,
+  onClose,
+  onFallbackToRoom,
+}: {
+  src: string;
+  anchor: "wrist" | "foot";
+  onClose: () => void;
+  onFallbackToRoom?: () => void;
+}) {
+  const { videoRef, status: cameraStatus, error: cameraError, start, stop } = useCameraStream();
+  const [trackingStatus, setTrackingStatus] = useState<AnchorStatus>("loading");
+  const [ukSize, setUkSize] = useState(9);
+
+  const streaming = cameraStatus === "streaming";
+  const box = useLetterboxSize(videoRef, streaming);
+
+  function handleClose() {
+    stop();
+    onClose();
+  }
+
+  const hintText = (() => {
+    if (!streaming) return null;
+    switch (trackingStatus) {
+      case "loading":
+        return "Loading the tracker…";
+      case "searching":
+        return anchor === "wrist"
+          ? "Hold your wrist out in front of the phone"
+          : "Move back so your legs are visible";
+      case "lost":
+        return anchor === "wrist" ? "Lost your wrist — hold it steady in frame" : "Move back so your legs are visible";
+      case "error":
+        return "Tracking failed to start.";
+      default:
+        return null;
+    }
+  })();
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black">
+      {streaming && box && (
+        <>
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            style={{ width: box.width, height: box.height }}
+            className="pointer-events-none absolute"
+          />
+          <div className="absolute" style={{ width: box.width, height: box.height }}>
+            <Canvas gl={{ alpha: true, antialias: true }} camera={{ fov: CAMERA_FOV_DEG, position: [0, 0, 0] }}>
+              <TryOnScene
+                anchor={anchor}
+                src={src}
+                videoRef={videoRef}
+                enabled={streaming}
+                ukSize={ukSize}
+                onStatusChange={setTrackingStatus}
+              />
+            </Canvas>
+          </div>
+        </>
+      )}
+
+      {/* The <video> element must exist before getUserMedia's stream is
+          attached (start() reads videoRef.current), so it's always mounted
+          — just hidden off-box until we know the letterbox size. */}
+      {(!streaming || !box) && (
+        <video ref={videoRef} muted playsInline className="hidden" />
+      )}
+
+      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-4">
+        <div className="pointer-events-auto flex justify-end">
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label="Close try-on"
+            className="grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur-md active:bg-black/70"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="pointer-events-auto flex flex-col items-center gap-3 pb-4">
+          {anchor === "foot" && streaming && <SizePicker value={ukSize} onChange={setUkSize} />}
+          {hintText && (
+            <p className="rounded-full bg-black/55 px-3 py-1.5 text-center text-xs font-medium text-white backdrop-blur-md">
+              {hintText}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {!streaming && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center text-white">
+          {cameraStatus === "denied" || cameraStatus === "error" ? (
+            <>
+              <p className="text-sm font-medium">Couldn&apos;t access the camera</p>
+              {cameraError && <p className="max-w-xs text-xs text-white/70">{cameraError}</p>}
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={start}
+                  className="rounded-full bg-white px-6 py-2.5 text-xs font-semibold text-zinc-900"
+                >
+                  Try again
+                </button>
+                {onFallbackToRoom && (
+                  <button
+                    type="button"
+                    onClick={onFallbackToRoom}
+                    className="rounded-full border border-white/30 px-5 py-2 text-xs font-semibold"
+                  >
+                    Use Room Placement instead
+                  </button>
+                )}
+              </div>
+            </>
+          ) : cameraStatus === "requesting" ? (
+            <p className="text-sm font-medium">Requesting camera access…</p>
+          ) : (
+            <>
+              <p className="text-sm font-medium">
+                {anchor === "wrist" ? "Try this watch on your wrist" : "Try these shoes on your feet"}
+              </p>
+              <p className="max-w-xs text-xs text-white/70">
+                {anchor === "wrist"
+                  ? "Hold your wrist out in front of your phone's rear camera."
+                  : "Stand back with your phone at chest height so your legs are visible."}
+              </p>
+              <button
+                type="button"
+                onClick={start}
+                className="rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-zinc-900"
+              >
+                Start Try-On
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/30 px-5 py-2 text-xs font-semibold"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

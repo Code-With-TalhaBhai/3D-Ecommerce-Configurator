@@ -43,7 +43,6 @@ export type ProductSumAggregateOutputType = {
 export type ProductMinAggregateOutputType = {
   id: string | null
   vendorId: string | null
-  categoryId: string | null
   title: string | null
   slug: string | null
   description: string | null
@@ -54,15 +53,15 @@ export type ProductMinAggregateOutputType = {
   polyCount: number | null
   fileSize: number | null
   status: $Enums.ProductStatus | null
-  rejectionReason: string | null
   createdAt: Date | null
   updatedAt: Date | null
+  rejectionReason: string | null
+  categoryId: string | null
 }
 
 export type ProductMaxAggregateOutputType = {
   id: string | null
   vendorId: string | null
-  categoryId: string | null
   title: string | null
   slug: string | null
   description: string | null
@@ -73,15 +72,15 @@ export type ProductMaxAggregateOutputType = {
   polyCount: number | null
   fileSize: number | null
   status: $Enums.ProductStatus | null
-  rejectionReason: string | null
   createdAt: Date | null
   updatedAt: Date | null
+  rejectionReason: string | null
+  categoryId: string | null
 }
 
 export type ProductCountAggregateOutputType = {
   id: number
   vendorId: number
-  categoryId: number
   title: number
   slug: number
   description: number
@@ -92,9 +91,10 @@ export type ProductCountAggregateOutputType = {
   polyCount: number
   fileSize: number
   status: number
-  rejectionReason: number
   createdAt: number
   updatedAt: number
+  rejectionReason: number
+  categoryId: number
   _all: number
 }
 
@@ -116,7 +116,6 @@ export type ProductSumAggregateInputType = {
 export type ProductMinAggregateInputType = {
   id?: true
   vendorId?: true
-  categoryId?: true
   title?: true
   slug?: true
   description?: true
@@ -127,15 +126,15 @@ export type ProductMinAggregateInputType = {
   polyCount?: true
   fileSize?: true
   status?: true
-  rejectionReason?: true
   createdAt?: true
   updatedAt?: true
+  rejectionReason?: true
+  categoryId?: true
 }
 
 export type ProductMaxAggregateInputType = {
   id?: true
   vendorId?: true
-  categoryId?: true
   title?: true
   slug?: true
   description?: true
@@ -146,15 +145,15 @@ export type ProductMaxAggregateInputType = {
   polyCount?: true
   fileSize?: true
   status?: true
-  rejectionReason?: true
   createdAt?: true
   updatedAt?: true
+  rejectionReason?: true
+  categoryId?: true
 }
 
 export type ProductCountAggregateInputType = {
   id?: true
   vendorId?: true
-  categoryId?: true
   title?: true
   slug?: true
   description?: true
@@ -165,9 +164,10 @@ export type ProductCountAggregateInputType = {
   polyCount?: true
   fileSize?: true
   status?: true
-  rejectionReason?: true
   createdAt?: true
   updatedAt?: true
+  rejectionReason?: true
+  categoryId?: true
   _all?: true
 }
 
@@ -260,7 +260,6 @@ export type ProductGroupByArgs<ExtArgs extends runtime.Types.Extensions.Internal
 export type ProductGroupByOutputType = {
   id: string
   vendorId: string
-  categoryId: string
   title: string
   slug: string
   description: string
@@ -271,9 +270,10 @@ export type ProductGroupByOutputType = {
   polyCount: number | null
   fileSize: number | null
   status: $Enums.ProductStatus
-  rejectionReason: string | null
   createdAt: Date
   updatedAt: Date
+  rejectionReason: string | null
+  categoryId: string
   _count: ProductCountAggregateOutputType | null
   _avg: ProductAvgAggregateOutputType | null
   _sum: ProductSumAggregateOutputType | null
@@ -302,7 +302,6 @@ export type ProductWhereInput = {
   NOT?: Prisma.ProductWhereInput | Prisma.ProductWhereInput[]
   id?: Prisma.StringFilter<"Product"> | string
   vendorId?: Prisma.StringFilter<"Product"> | string
-  categoryId?: Prisma.StringFilter<"Product"> | string
   title?: Prisma.StringFilter<"Product"> | string
   slug?: Prisma.StringFilter<"Product"> | string
   description?: Prisma.StringFilter<"Product"> | string
@@ -313,20 +312,20 @@ export type ProductWhereInput = {
   polyCount?: Prisma.IntNullableFilter<"Product"> | number | null
   fileSize?: Prisma.IntNullableFilter<"Product"> | number | null
   status?: Prisma.EnumProductStatusFilter<"Product"> | $Enums.ProductStatus
-  rejectionReason?: Prisma.StringNullableFilter<"Product"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Product"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Product"> | Date | string
-  vendor?: Prisma.XOR<Prisma.VendorScalarRelationFilter, Prisma.VendorWhereInput>
-  category?: Prisma.XOR<Prisma.CategoryScalarRelationFilter, Prisma.CategoryWhereInput>
-  variants?: Prisma.ProductVariantListRelationFilter
-  orderItems?: Prisma.OrderItemListRelationFilter
+  rejectionReason?: Prisma.StringNullableFilter<"Product"> | string | null
+  categoryId?: Prisma.StringFilter<"Product"> | string
   messages?: Prisma.MessageListRelationFilter
+  orderItems?: Prisma.OrderItemListRelationFilter
+  category?: Prisma.XOR<Prisma.CategoryScalarRelationFilter, Prisma.CategoryWhereInput>
+  vendor?: Prisma.XOR<Prisma.VendorScalarRelationFilter, Prisma.VendorWhereInput>
+  variants?: Prisma.ProductVariantListRelationFilter
 }
 
 export type ProductOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   vendorId?: Prisma.SortOrder
-  categoryId?: Prisma.SortOrder
   title?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   description?: Prisma.SortOrder
@@ -337,14 +336,15 @@ export type ProductOrderByWithRelationInput = {
   polyCount?: Prisma.SortOrderInput | Prisma.SortOrder
   fileSize?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
-  rejectionReason?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
-  vendor?: Prisma.VendorOrderByWithRelationInput
-  category?: Prisma.CategoryOrderByWithRelationInput
-  variants?: Prisma.ProductVariantOrderByRelationAggregateInput
-  orderItems?: Prisma.OrderItemOrderByRelationAggregateInput
+  rejectionReason?: Prisma.SortOrderInput | Prisma.SortOrder
+  categoryId?: Prisma.SortOrder
   messages?: Prisma.MessageOrderByRelationAggregateInput
+  orderItems?: Prisma.OrderItemOrderByRelationAggregateInput
+  category?: Prisma.CategoryOrderByWithRelationInput
+  vendor?: Prisma.VendorOrderByWithRelationInput
+  variants?: Prisma.ProductVariantOrderByRelationAggregateInput
 }
 
 export type ProductWhereUniqueInput = Prisma.AtLeast<{
@@ -354,7 +354,6 @@ export type ProductWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.ProductWhereInput[]
   NOT?: Prisma.ProductWhereInput | Prisma.ProductWhereInput[]
   vendorId?: Prisma.StringFilter<"Product"> | string
-  categoryId?: Prisma.StringFilter<"Product"> | string
   title?: Prisma.StringFilter<"Product"> | string
   description?: Prisma.StringFilter<"Product"> | string
   price?: Prisma.DecimalFilter<"Product"> | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -364,20 +363,20 @@ export type ProductWhereUniqueInput = Prisma.AtLeast<{
   polyCount?: Prisma.IntNullableFilter<"Product"> | number | null
   fileSize?: Prisma.IntNullableFilter<"Product"> | number | null
   status?: Prisma.EnumProductStatusFilter<"Product"> | $Enums.ProductStatus
-  rejectionReason?: Prisma.StringNullableFilter<"Product"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Product"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Product"> | Date | string
-  vendor?: Prisma.XOR<Prisma.VendorScalarRelationFilter, Prisma.VendorWhereInput>
-  category?: Prisma.XOR<Prisma.CategoryScalarRelationFilter, Prisma.CategoryWhereInput>
-  variants?: Prisma.ProductVariantListRelationFilter
-  orderItems?: Prisma.OrderItemListRelationFilter
+  rejectionReason?: Prisma.StringNullableFilter<"Product"> | string | null
+  categoryId?: Prisma.StringFilter<"Product"> | string
   messages?: Prisma.MessageListRelationFilter
+  orderItems?: Prisma.OrderItemListRelationFilter
+  category?: Prisma.XOR<Prisma.CategoryScalarRelationFilter, Prisma.CategoryWhereInput>
+  vendor?: Prisma.XOR<Prisma.VendorScalarRelationFilter, Prisma.VendorWhereInput>
+  variants?: Prisma.ProductVariantListRelationFilter
 }, "id" | "slug">
 
 export type ProductOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   vendorId?: Prisma.SortOrder
-  categoryId?: Prisma.SortOrder
   title?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   description?: Prisma.SortOrder
@@ -388,9 +387,10 @@ export type ProductOrderByWithAggregationInput = {
   polyCount?: Prisma.SortOrderInput | Prisma.SortOrder
   fileSize?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
-  rejectionReason?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  rejectionReason?: Prisma.SortOrderInput | Prisma.SortOrder
+  categoryId?: Prisma.SortOrder
   _count?: Prisma.ProductCountOrderByAggregateInput
   _avg?: Prisma.ProductAvgOrderByAggregateInput
   _max?: Prisma.ProductMaxOrderByAggregateInput
@@ -404,7 +404,6 @@ export type ProductScalarWhereWithAggregatesInput = {
   NOT?: Prisma.ProductScalarWhereWithAggregatesInput | Prisma.ProductScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"Product"> | string
   vendorId?: Prisma.StringWithAggregatesFilter<"Product"> | string
-  categoryId?: Prisma.StringWithAggregatesFilter<"Product"> | string
   title?: Prisma.StringWithAggregatesFilter<"Product"> | string
   slug?: Prisma.StringWithAggregatesFilter<"Product"> | string
   description?: Prisma.StringWithAggregatesFilter<"Product"> | string
@@ -415,9 +414,10 @@ export type ProductScalarWhereWithAggregatesInput = {
   polyCount?: Prisma.IntNullableWithAggregatesFilter<"Product"> | number | null
   fileSize?: Prisma.IntNullableWithAggregatesFilter<"Product"> | number | null
   status?: Prisma.EnumProductStatusWithAggregatesFilter<"Product"> | $Enums.ProductStatus
-  rejectionReason?: Prisma.StringNullableWithAggregatesFilter<"Product"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Product"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Product"> | Date | string
+  rejectionReason?: Prisma.StringNullableWithAggregatesFilter<"Product"> | string | null
+  categoryId?: Prisma.StringWithAggregatesFilter<"Product"> | string
 }
 
 export type ProductCreateInput = {
@@ -432,20 +432,19 @@ export type ProductCreateInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  vendor: Prisma.VendorCreateNestedOneWithoutProductsInput
-  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
-  variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
-  orderItems?: Prisma.OrderItemCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
   messages?: Prisma.MessageCreateNestedManyWithoutProductInput
+  orderItems?: Prisma.OrderItemCreateNestedManyWithoutProductInput
+  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  vendor: Prisma.VendorCreateNestedOneWithoutProductsInput
+  variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateInput = {
   id?: string
   vendorId: string
-  categoryId: string
   title: string
   slug: string
   description: string
@@ -456,12 +455,13 @@ export type ProductUncheckedCreateInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
-  orderItems?: Prisma.OrderItemUncheckedCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
+  categoryId: string
   messages?: Prisma.MessageUncheckedCreateNestedManyWithoutProductInput
+  orderItems?: Prisma.OrderItemUncheckedCreateNestedManyWithoutProductInput
+  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductUpdateInput = {
@@ -476,20 +476,19 @@ export type ProductUpdateInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  vendor?: Prisma.VendorUpdateOneRequiredWithoutProductsNestedInput
-  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
-  variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
-  orderItems?: Prisma.OrderItemUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   messages?: Prisma.MessageUpdateManyWithoutProductNestedInput
+  orderItems?: Prisma.OrderItemUpdateManyWithoutProductNestedInput
+  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
+  vendor?: Prisma.VendorUpdateOneRequiredWithoutProductsNestedInput
+  variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   vendorId?: Prisma.StringFieldUpdateOperationsInput | string
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.StringFieldUpdateOperationsInput | string
@@ -500,18 +499,18 @@ export type ProductUncheckedUpdateInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
-  orderItems?: Prisma.OrderItemUncheckedUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   messages?: Prisma.MessageUncheckedUpdateManyWithoutProductNestedInput
+  orderItems?: Prisma.OrderItemUncheckedUpdateManyWithoutProductNestedInput
+  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductCreateManyInput = {
   id?: string
   vendorId: string
-  categoryId: string
   title: string
   slug: string
   description: string
@@ -522,9 +521,10 @@ export type ProductCreateManyInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  rejectionReason?: string | null
+  categoryId: string
 }
 
 export type ProductUpdateManyMutationInput = {
@@ -539,15 +539,14 @@ export type ProductUpdateManyMutationInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type ProductUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   vendorId?: Prisma.StringFieldUpdateOperationsInput | string
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.StringFieldUpdateOperationsInput | string
@@ -558,9 +557,10 @@ export type ProductUncheckedUpdateManyInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type ProductListRelationFilter = {
@@ -576,7 +576,6 @@ export type ProductOrderByRelationAggregateInput = {
 export type ProductCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   vendorId?: Prisma.SortOrder
-  categoryId?: Prisma.SortOrder
   title?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   description?: Prisma.SortOrder
@@ -587,9 +586,10 @@ export type ProductCountOrderByAggregateInput = {
   polyCount?: Prisma.SortOrder
   fileSize?: Prisma.SortOrder
   status?: Prisma.SortOrder
-  rejectionReason?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  rejectionReason?: Prisma.SortOrder
+  categoryId?: Prisma.SortOrder
 }
 
 export type ProductAvgOrderByAggregateInput = {
@@ -602,7 +602,6 @@ export type ProductAvgOrderByAggregateInput = {
 export type ProductMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   vendorId?: Prisma.SortOrder
-  categoryId?: Prisma.SortOrder
   title?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   description?: Prisma.SortOrder
@@ -613,15 +612,15 @@ export type ProductMaxOrderByAggregateInput = {
   polyCount?: Prisma.SortOrder
   fileSize?: Prisma.SortOrder
   status?: Prisma.SortOrder
-  rejectionReason?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  rejectionReason?: Prisma.SortOrder
+  categoryId?: Prisma.SortOrder
 }
 
 export type ProductMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   vendorId?: Prisma.SortOrder
-  categoryId?: Prisma.SortOrder
   title?: Prisma.SortOrder
   slug?: Prisma.SortOrder
   description?: Prisma.SortOrder
@@ -632,9 +631,10 @@ export type ProductMinOrderByAggregateInput = {
   polyCount?: Prisma.SortOrder
   fileSize?: Prisma.SortOrder
   status?: Prisma.SortOrder
-  rejectionReason?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  rejectionReason?: Prisma.SortOrder
+  categoryId?: Prisma.SortOrder
 }
 
 export type ProductSumOrderByAggregateInput = {
@@ -807,18 +807,17 @@ export type ProductCreateWithoutVendorInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  rejectionReason?: string | null
+  messages?: Prisma.MessageCreateNestedManyWithoutProductInput
+  orderItems?: Prisma.OrderItemCreateNestedManyWithoutProductInput
   category: Prisma.CategoryCreateNestedOneWithoutProductsInput
   variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
-  orderItems?: Prisma.OrderItemCreateNestedManyWithoutProductInput
-  messages?: Prisma.MessageCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateWithoutVendorInput = {
   id?: string
-  categoryId: string
   title: string
   slug: string
   description: string
@@ -829,12 +828,13 @@ export type ProductUncheckedCreateWithoutVendorInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
-  orderItems?: Prisma.OrderItemUncheckedCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
+  categoryId: string
   messages?: Prisma.MessageUncheckedCreateNestedManyWithoutProductInput
+  orderItems?: Prisma.OrderItemUncheckedCreateNestedManyWithoutProductInput
+  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutVendorInput = {
@@ -869,7 +869,6 @@ export type ProductScalarWhereInput = {
   NOT?: Prisma.ProductScalarWhereInput | Prisma.ProductScalarWhereInput[]
   id?: Prisma.StringFilter<"Product"> | string
   vendorId?: Prisma.StringFilter<"Product"> | string
-  categoryId?: Prisma.StringFilter<"Product"> | string
   title?: Prisma.StringFilter<"Product"> | string
   slug?: Prisma.StringFilter<"Product"> | string
   description?: Prisma.StringFilter<"Product"> | string
@@ -880,9 +879,10 @@ export type ProductScalarWhereInput = {
   polyCount?: Prisma.IntNullableFilter<"Product"> | number | null
   fileSize?: Prisma.IntNullableFilter<"Product"> | number | null
   status?: Prisma.EnumProductStatusFilter<"Product"> | $Enums.ProductStatus
-  rejectionReason?: Prisma.StringNullableFilter<"Product"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Product"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Product"> | Date | string
+  rejectionReason?: Prisma.StringNullableFilter<"Product"> | string | null
+  categoryId?: Prisma.StringFilter<"Product"> | string
 }
 
 export type ProductCreateWithoutCategoryInput = {
@@ -897,13 +897,13 @@ export type ProductCreateWithoutCategoryInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  rejectionReason?: string | null
+  messages?: Prisma.MessageCreateNestedManyWithoutProductInput
+  orderItems?: Prisma.OrderItemCreateNestedManyWithoutProductInput
   vendor: Prisma.VendorCreateNestedOneWithoutProductsInput
   variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
-  orderItems?: Prisma.OrderItemCreateNestedManyWithoutProductInput
-  messages?: Prisma.MessageCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateWithoutCategoryInput = {
@@ -919,12 +919,12 @@ export type ProductUncheckedCreateWithoutCategoryInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
-  orderItems?: Prisma.OrderItemUncheckedCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
   messages?: Prisma.MessageUncheckedCreateNestedManyWithoutProductInput
+  orderItems?: Prisma.OrderItemUncheckedCreateNestedManyWithoutProductInput
+  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutCategoryInput = {
@@ -965,19 +965,18 @@ export type ProductCreateWithoutVariantsInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  vendor: Prisma.VendorCreateNestedOneWithoutProductsInput
-  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
-  orderItems?: Prisma.OrderItemCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
   messages?: Prisma.MessageCreateNestedManyWithoutProductInput
+  orderItems?: Prisma.OrderItemCreateNestedManyWithoutProductInput
+  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  vendor: Prisma.VendorCreateNestedOneWithoutProductsInput
 }
 
 export type ProductUncheckedCreateWithoutVariantsInput = {
   id?: string
   vendorId: string
-  categoryId: string
   title: string
   slug: string
   description: string
@@ -988,11 +987,12 @@ export type ProductUncheckedCreateWithoutVariantsInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  orderItems?: Prisma.OrderItemUncheckedCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
+  categoryId: string
   messages?: Prisma.MessageUncheckedCreateNestedManyWithoutProductInput
+  orderItems?: Prisma.OrderItemUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutVariantsInput = {
@@ -1023,19 +1023,18 @@ export type ProductUpdateWithoutVariantsInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  vendor?: Prisma.VendorUpdateOneRequiredWithoutProductsNestedInput
-  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
-  orderItems?: Prisma.OrderItemUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   messages?: Prisma.MessageUpdateManyWithoutProductNestedInput
+  orderItems?: Prisma.OrderItemUpdateManyWithoutProductNestedInput
+  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
+  vendor?: Prisma.VendorUpdateOneRequiredWithoutProductsNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutVariantsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   vendorId?: Prisma.StringFieldUpdateOperationsInput | string
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1046,11 +1045,12 @@ export type ProductUncheckedUpdateWithoutVariantsInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  orderItems?: Prisma.OrderItemUncheckedUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   messages?: Prisma.MessageUncheckedUpdateManyWithoutProductNestedInput
+  orderItems?: Prisma.OrderItemUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductCreateWithoutOrderItemsInput = {
@@ -1065,19 +1065,18 @@ export type ProductCreateWithoutOrderItemsInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  vendor: Prisma.VendorCreateNestedOneWithoutProductsInput
-  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
-  variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
   messages?: Prisma.MessageCreateNestedManyWithoutProductInput
+  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  vendor: Prisma.VendorCreateNestedOneWithoutProductsInput
+  variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateWithoutOrderItemsInput = {
   id?: string
   vendorId: string
-  categoryId: string
   title: string
   slug: string
   description: string
@@ -1088,11 +1087,12 @@ export type ProductUncheckedCreateWithoutOrderItemsInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
+  categoryId: string
   messages?: Prisma.MessageUncheckedCreateNestedManyWithoutProductInput
+  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutOrderItemsInput = {
@@ -1123,19 +1123,18 @@ export type ProductUpdateWithoutOrderItemsInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  vendor?: Prisma.VendorUpdateOneRequiredWithoutProductsNestedInput
-  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
-  variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   messages?: Prisma.MessageUpdateManyWithoutProductNestedInput
+  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
+  vendor?: Prisma.VendorUpdateOneRequiredWithoutProductsNestedInput
+  variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutOrderItemsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   vendorId?: Prisma.StringFieldUpdateOperationsInput | string
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1146,11 +1145,12 @@ export type ProductUncheckedUpdateWithoutOrderItemsInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   messages?: Prisma.MessageUncheckedUpdateManyWithoutProductNestedInput
+  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductCreateWithoutMessagesInput = {
@@ -1165,19 +1165,18 @@ export type ProductCreateWithoutMessagesInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  vendor: Prisma.VendorCreateNestedOneWithoutProductsInput
-  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
-  variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
   orderItems?: Prisma.OrderItemCreateNestedManyWithoutProductInput
+  category: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  vendor: Prisma.VendorCreateNestedOneWithoutProductsInput
+  variants?: Prisma.ProductVariantCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateWithoutMessagesInput = {
   id?: string
   vendorId: string
-  categoryId: string
   title: string
   slug: string
   description: string
@@ -1188,11 +1187,12 @@ export type ProductUncheckedCreateWithoutMessagesInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
+  rejectionReason?: string | null
+  categoryId: string
   orderItems?: Prisma.OrderItemUncheckedCreateNestedManyWithoutProductInput
+  variants?: Prisma.ProductVariantUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutMessagesInput = {
@@ -1223,19 +1223,18 @@ export type ProductUpdateWithoutMessagesInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  vendor?: Prisma.VendorUpdateOneRequiredWithoutProductsNestedInput
-  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
-  variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   orderItems?: Prisma.OrderItemUpdateManyWithoutProductNestedInput
+  category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
+  vendor?: Prisma.VendorUpdateOneRequiredWithoutProductsNestedInput
+  variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutMessagesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   vendorId?: Prisma.StringFieldUpdateOperationsInput | string
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1246,16 +1245,16 @@ export type ProductUncheckedUpdateWithoutMessagesInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   orderItems?: Prisma.OrderItemUncheckedUpdateManyWithoutProductNestedInput
+  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductCreateManyVendorInput = {
   id?: string
-  categoryId: string
   title: string
   slug: string
   description: string
@@ -1266,9 +1265,10 @@ export type ProductCreateManyVendorInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  rejectionReason?: string | null
+  categoryId: string
 }
 
 export type ProductUpdateWithoutVendorInput = {
@@ -1283,18 +1283,17 @@ export type ProductUpdateWithoutVendorInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  messages?: Prisma.MessageUpdateManyWithoutProductNestedInput
+  orderItems?: Prisma.OrderItemUpdateManyWithoutProductNestedInput
   category?: Prisma.CategoryUpdateOneRequiredWithoutProductsNestedInput
   variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
-  orderItems?: Prisma.OrderItemUpdateManyWithoutProductNestedInput
-  messages?: Prisma.MessageUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutVendorInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1305,17 +1304,17 @@ export type ProductUncheckedUpdateWithoutVendorInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
-  orderItems?: Prisma.OrderItemUncheckedUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   messages?: Prisma.MessageUncheckedUpdateManyWithoutProductNestedInput
+  orderItems?: Prisma.OrderItemUncheckedUpdateManyWithoutProductNestedInput
+  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateManyWithoutVendorInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1326,9 +1325,10 @@ export type ProductUncheckedUpdateManyWithoutVendorInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  categoryId?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type ProductCreateManyCategoryInput = {
@@ -1344,9 +1344,9 @@ export type ProductCreateManyCategoryInput = {
   polyCount?: number | null
   fileSize?: number | null
   status?: $Enums.ProductStatus
-  rejectionReason?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  rejectionReason?: string | null
 }
 
 export type ProductUpdateWithoutCategoryInput = {
@@ -1361,13 +1361,13 @@ export type ProductUpdateWithoutCategoryInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  messages?: Prisma.MessageUpdateManyWithoutProductNestedInput
+  orderItems?: Prisma.OrderItemUpdateManyWithoutProductNestedInput
   vendor?: Prisma.VendorUpdateOneRequiredWithoutProductsNestedInput
   variants?: Prisma.ProductVariantUpdateManyWithoutProductNestedInput
-  orderItems?: Prisma.OrderItemUpdateManyWithoutProductNestedInput
-  messages?: Prisma.MessageUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutCategoryInput = {
@@ -1383,12 +1383,12 @@ export type ProductUncheckedUpdateWithoutCategoryInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
-  orderItems?: Prisma.OrderItemUncheckedUpdateManyWithoutProductNestedInput
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   messages?: Prisma.MessageUncheckedUpdateManyWithoutProductNestedInput
+  orderItems?: Prisma.OrderItemUncheckedUpdateManyWithoutProductNestedInput
+  variants?: Prisma.ProductVariantUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateManyWithoutCategoryInput = {
@@ -1404,9 +1404,9 @@ export type ProductUncheckedUpdateManyWithoutCategoryInput = {
   polyCount?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fileSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumProductStatusFieldUpdateOperationsInput | $Enums.ProductStatus
-  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  rejectionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 
@@ -1415,15 +1415,15 @@ export type ProductUncheckedUpdateManyWithoutCategoryInput = {
  */
 
 export type ProductCountOutputType = {
-  variants: number
-  orderItems: number
   messages: number
+  orderItems: number
+  variants: number
 }
 
 export type ProductCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  variants?: boolean | ProductCountOutputTypeCountVariantsArgs
-  orderItems?: boolean | ProductCountOutputTypeCountOrderItemsArgs
   messages?: boolean | ProductCountOutputTypeCountMessagesArgs
+  orderItems?: boolean | ProductCountOutputTypeCountOrderItemsArgs
+  variants?: boolean | ProductCountOutputTypeCountVariantsArgs
 }
 
 /**
@@ -1439,8 +1439,8 @@ export type ProductCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Exte
 /**
  * ProductCountOutputType without action
  */
-export type ProductCountOutputTypeCountVariantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.ProductVariantWhereInput
+export type ProductCountOutputTypeCountMessagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.MessageWhereInput
 }
 
 /**
@@ -1453,15 +1453,14 @@ export type ProductCountOutputTypeCountOrderItemsArgs<ExtArgs extends runtime.Ty
 /**
  * ProductCountOutputType without action
  */
-export type ProductCountOutputTypeCountMessagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.MessageWhereInput
+export type ProductCountOutputTypeCountVariantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ProductVariantWhereInput
 }
 
 
 export type ProductSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   vendorId?: boolean
-  categoryId?: boolean
   title?: boolean
   slug?: boolean
   description?: boolean
@@ -1472,21 +1471,21 @@ export type ProductSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   polyCount?: boolean
   fileSize?: boolean
   status?: boolean
-  rejectionReason?: boolean
   createdAt?: boolean
   updatedAt?: boolean
-  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
-  category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
-  variants?: boolean | Prisma.Product$variantsArgs<ExtArgs>
-  orderItems?: boolean | Prisma.Product$orderItemsArgs<ExtArgs>
+  rejectionReason?: boolean
+  categoryId?: boolean
   messages?: boolean | Prisma.Product$messagesArgs<ExtArgs>
+  orderItems?: boolean | Prisma.Product$orderItemsArgs<ExtArgs>
+  category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
+  variants?: boolean | Prisma.Product$variantsArgs<ExtArgs>
   _count?: boolean | Prisma.ProductCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["product"]>
 
 export type ProductSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   vendorId?: boolean
-  categoryId?: boolean
   title?: boolean
   slug?: boolean
   description?: boolean
@@ -1497,17 +1496,17 @@ export type ProductSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   polyCount?: boolean
   fileSize?: boolean
   status?: boolean
-  rejectionReason?: boolean
   createdAt?: boolean
   updatedAt?: boolean
-  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
+  rejectionReason?: boolean
+  categoryId?: boolean
   category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["product"]>
 
 export type ProductSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   vendorId?: boolean
-  categoryId?: boolean
   title?: boolean
   slug?: boolean
   description?: boolean
@@ -1518,17 +1517,17 @@ export type ProductSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   polyCount?: boolean
   fileSize?: boolean
   status?: boolean
-  rejectionReason?: boolean
   createdAt?: boolean
   updatedAt?: boolean
-  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
+  rejectionReason?: boolean
+  categoryId?: boolean
   category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["product"]>
 
 export type ProductSelectScalar = {
   id?: boolean
   vendorId?: boolean
-  categoryId?: boolean
   title?: boolean
   slug?: boolean
   description?: boolean
@@ -1539,42 +1538,42 @@ export type ProductSelectScalar = {
   polyCount?: boolean
   fileSize?: boolean
   status?: boolean
-  rejectionReason?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  rejectionReason?: boolean
+  categoryId?: boolean
 }
 
-export type ProductOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "vendorId" | "categoryId" | "title" | "slug" | "description" | "price" | "stock" | "glbUrl" | "thumbnailUrl" | "polyCount" | "fileSize" | "status" | "rejectionReason" | "createdAt" | "updatedAt", ExtArgs["result"]["product"]>
+export type ProductOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "vendorId" | "title" | "slug" | "description" | "price" | "stock" | "glbUrl" | "thumbnailUrl" | "polyCount" | "fileSize" | "status" | "createdAt" | "updatedAt" | "rejectionReason" | "categoryId", ExtArgs["result"]["product"]>
 export type ProductInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
-  category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
-  variants?: boolean | Prisma.Product$variantsArgs<ExtArgs>
-  orderItems?: boolean | Prisma.Product$orderItemsArgs<ExtArgs>
   messages?: boolean | Prisma.Product$messagesArgs<ExtArgs>
+  orderItems?: boolean | Prisma.Product$orderItemsArgs<ExtArgs>
+  category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
+  variants?: boolean | Prisma.Product$variantsArgs<ExtArgs>
   _count?: boolean | Prisma.ProductCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type ProductIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
   category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
 }
 export type ProductIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
   category?: boolean | Prisma.CategoryDefaultArgs<ExtArgs>
+  vendor?: boolean | Prisma.VendorDefaultArgs<ExtArgs>
 }
 
 export type $ProductPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Product"
   objects: {
-    vendor: Prisma.$VendorPayload<ExtArgs>
-    category: Prisma.$CategoryPayload<ExtArgs>
-    variants: Prisma.$ProductVariantPayload<ExtArgs>[]
-    orderItems: Prisma.$OrderItemPayload<ExtArgs>[]
     messages: Prisma.$MessagePayload<ExtArgs>[]
+    orderItems: Prisma.$OrderItemPayload<ExtArgs>[]
+    category: Prisma.$CategoryPayload<ExtArgs>
+    vendor: Prisma.$VendorPayload<ExtArgs>
+    variants: Prisma.$ProductVariantPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     vendorId: string
-    categoryId: string
     title: string
     slug: string
     description: string
@@ -1585,9 +1584,10 @@ export type $ProductPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     polyCount: number | null
     fileSize: number | null
     status: $Enums.ProductStatus
-    rejectionReason: string | null
     createdAt: Date
     updatedAt: Date
+    rejectionReason: string | null
+    categoryId: string
   }, ExtArgs["result"]["product"]>
   composites: {}
 }
@@ -1982,11 +1982,11 @@ readonly fields: ProductFieldRefs;
  */
 export interface Prisma__ProductClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
-  vendor<T extends Prisma.VendorDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.VendorDefaultArgs<ExtArgs>>): Prisma.Prisma__VendorClient<runtime.Types.Result.GetResult<Prisma.$VendorPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
-  category<T extends Prisma.CategoryDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CategoryDefaultArgs<ExtArgs>>): Prisma.Prisma__CategoryClient<runtime.Types.Result.GetResult<Prisma.$CategoryPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
-  variants<T extends Prisma.Product$variantsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$variantsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProductVariantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  orderItems<T extends Prisma.Product$orderItemsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$orderItemsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrderItemPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   messages<T extends Prisma.Product$messagesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$messagesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MessagePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  orderItems<T extends Prisma.Product$orderItemsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$orderItemsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrderItemPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  category<T extends Prisma.CategoryDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CategoryDefaultArgs<ExtArgs>>): Prisma.Prisma__CategoryClient<runtime.Types.Result.GetResult<Prisma.$CategoryPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  vendor<T extends Prisma.VendorDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.VendorDefaultArgs<ExtArgs>>): Prisma.Prisma__VendorClient<runtime.Types.Result.GetResult<Prisma.$VendorPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  variants<T extends Prisma.Product$variantsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$variantsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProductVariantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2018,7 +2018,6 @@ export interface Prisma__ProductClient<T, Null = never, ExtArgs extends runtime.
 export interface ProductFieldRefs {
   readonly id: Prisma.FieldRef<"Product", 'String'>
   readonly vendorId: Prisma.FieldRef<"Product", 'String'>
-  readonly categoryId: Prisma.FieldRef<"Product", 'String'>
   readonly title: Prisma.FieldRef<"Product", 'String'>
   readonly slug: Prisma.FieldRef<"Product", 'String'>
   readonly description: Prisma.FieldRef<"Product", 'String'>
@@ -2029,9 +2028,10 @@ export interface ProductFieldRefs {
   readonly polyCount: Prisma.FieldRef<"Product", 'Int'>
   readonly fileSize: Prisma.FieldRef<"Product", 'Int'>
   readonly status: Prisma.FieldRef<"Product", 'ProductStatus'>
-  readonly rejectionReason: Prisma.FieldRef<"Product", 'String'>
   readonly createdAt: Prisma.FieldRef<"Product", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Product", 'DateTime'>
+  readonly rejectionReason: Prisma.FieldRef<"Product", 'String'>
+  readonly categoryId: Prisma.FieldRef<"Product", 'String'>
 }
     
 
@@ -2433,27 +2433,27 @@ export type ProductDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Inter
 }
 
 /**
- * Product.variants
+ * Product.messages
  */
-export type Product$variantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+export type Product$messagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   /**
-   * Select specific fields to fetch from the ProductVariant
+   * Select specific fields to fetch from the Message
    */
-  select?: Prisma.ProductVariantSelect<ExtArgs> | null
+  select?: Prisma.MessageSelect<ExtArgs> | null
   /**
-   * Omit specific fields from the ProductVariant
+   * Omit specific fields from the Message
    */
-  omit?: Prisma.ProductVariantOmit<ExtArgs> | null
+  omit?: Prisma.MessageOmit<ExtArgs> | null
   /**
    * Choose, which related nodes to fetch as well
    */
-  include?: Prisma.ProductVariantInclude<ExtArgs> | null
-  where?: Prisma.ProductVariantWhereInput
-  orderBy?: Prisma.ProductVariantOrderByWithRelationInput | Prisma.ProductVariantOrderByWithRelationInput[]
-  cursor?: Prisma.ProductVariantWhereUniqueInput
+  include?: Prisma.MessageInclude<ExtArgs> | null
+  where?: Prisma.MessageWhereInput
+  orderBy?: Prisma.MessageOrderByWithRelationInput | Prisma.MessageOrderByWithRelationInput[]
+  cursor?: Prisma.MessageWhereUniqueInput
   take?: number
   skip?: number
-  distinct?: Prisma.ProductVariantScalarFieldEnum | Prisma.ProductVariantScalarFieldEnum[]
+  distinct?: Prisma.MessageScalarFieldEnum | Prisma.MessageScalarFieldEnum[]
 }
 
 /**
@@ -2481,27 +2481,27 @@ export type Product$orderItemsArgs<ExtArgs extends runtime.Types.Extensions.Inte
 }
 
 /**
- * Product.messages
+ * Product.variants
  */
-export type Product$messagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+export type Product$variantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   /**
-   * Select specific fields to fetch from the Message
+   * Select specific fields to fetch from the ProductVariant
    */
-  select?: Prisma.MessageSelect<ExtArgs> | null
+  select?: Prisma.ProductVariantSelect<ExtArgs> | null
   /**
-   * Omit specific fields from the Message
+   * Omit specific fields from the ProductVariant
    */
-  omit?: Prisma.MessageOmit<ExtArgs> | null
+  omit?: Prisma.ProductVariantOmit<ExtArgs> | null
   /**
    * Choose, which related nodes to fetch as well
    */
-  include?: Prisma.MessageInclude<ExtArgs> | null
-  where?: Prisma.MessageWhereInput
-  orderBy?: Prisma.MessageOrderByWithRelationInput | Prisma.MessageOrderByWithRelationInput[]
-  cursor?: Prisma.MessageWhereUniqueInput
+  include?: Prisma.ProductVariantInclude<ExtArgs> | null
+  where?: Prisma.ProductVariantWhereInput
+  orderBy?: Prisma.ProductVariantOrderByWithRelationInput | Prisma.ProductVariantOrderByWithRelationInput[]
+  cursor?: Prisma.ProductVariantWhereUniqueInput
   take?: number
   skip?: number
-  distinct?: Prisma.MessageScalarFieldEnum | Prisma.MessageScalarFieldEnum[]
+  distinct?: Prisma.ProductVariantScalarFieldEnum | Prisma.ProductVariantScalarFieldEnum[]
 }
 
 /**

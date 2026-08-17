@@ -1350,9 +1350,9 @@ export const UserScalarFieldEnum = {
   image: 'image',
   emailVerified: 'emailVerified',
   role: 'role',
-  suspendedAt: 'suspendedAt',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  suspendedAt: 'suspendedAt'
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
@@ -1413,7 +1413,6 @@ export type VendorScalarFieldEnum = (typeof VendorScalarFieldEnum)[keyof typeof 
 export const ProductScalarFieldEnum = {
   id: 'id',
   vendorId: 'vendorId',
-  categoryId: 'categoryId',
   title: 'title',
   slug: 'slug',
   description: 'description',
@@ -1424,9 +1423,10 @@ export const ProductScalarFieldEnum = {
   polyCount: 'polyCount',
   fileSize: 'fileSize',
   status: 'status',
-  rejectionReason: 'rejectionReason',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  rejectionReason: 'rejectionReason',
+  categoryId: 'categoryId'
 } as const
 
 export type ProductScalarFieldEnum = (typeof ProductScalarFieldEnum)[keyof typeof ProductScalarFieldEnum]
@@ -1436,6 +1436,7 @@ export const CategoryScalarFieldEnum = {
   id: 'id',
   name: 'name',
   slug: 'slug',
+  tryOnAnchor: 'tryOnAnchor',
   createdAt: 'createdAt'
 } as const
 
@@ -1456,14 +1457,14 @@ export type ProductVariantScalarFieldEnum = (typeof ProductVariantScalarFieldEnu
 export const OrderScalarFieldEnum = {
   id: 'id',
   customerId: 'customerId',
-  subtotal: 'subtotal',
-  discountAmount: 'discountAmount',
   total: 'total',
-  promoCode: 'promoCode',
   status: 'status',
-  stripeSessionId: 'stripeSessionId',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  discountAmount: 'discountAmount',
+  promoCode: 'promoCode',
+  stripeSessionId: 'stripeSessionId',
+  subtotal: 'subtotal'
 } as const
 
 export type OrderScalarFieldEnum = (typeof OrderScalarFieldEnum)[keyof typeof OrderScalarFieldEnum]
@@ -1474,7 +1475,8 @@ export const OrderItemScalarFieldEnum = {
   orderId: 'orderId',
   productId: 'productId',
   quantity: 'quantity',
-  unitPrice: 'unitPrice'
+  unitPrice: 'unitPrice',
+  customizations: 'customizations'
 } as const
 
 export type OrderItemScalarFieldEnum = (typeof OrderItemScalarFieldEnum)[keyof typeof OrderItemScalarFieldEnum]
@@ -1512,6 +1514,14 @@ export const SortOrder = {
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
 
 
+export const NullableJsonNullValueInput = {
+  DbNull: DbNull,
+  JsonNull: JsonNull
+} as const
+
+export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
 export const QueryMode = {
   default: 'default',
   insensitive: 'insensitive'
@@ -1526,6 +1536,15 @@ export const NullsOrder = {
 } as const
 
 export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
+
+
+export const JsonNullValueFilter = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+  AnyNull: AnyNull
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
 
 
 
@@ -1619,6 +1638,20 @@ export type ListEnumProductStatusFieldRefInput<$PrismaModel> = FieldRefInputType
 
 
 /**
+ * Reference to a field of type 'TryOnAnchor'
+ */
+export type EnumTryOnAnchorFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TryOnAnchor'>
+    
+
+
+/**
+ * Reference to a field of type 'TryOnAnchor[]'
+ */
+export type ListEnumTryOnAnchorFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TryOnAnchor[]'>
+    
+
+
+/**
  * Reference to a field of type 'OrderStatus'
  */
 export type EnumOrderStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OrderStatus'>
@@ -1629,6 +1662,20 @@ export type EnumOrderStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$Pris
  * Reference to a field of type 'OrderStatus[]'
  */
 export type ListEnumOrderStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OrderStatus[]'>
+    
+
+
+/**
+ * Reference to a field of type 'Json'
+ */
+export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
+    
+
+
+/**
+ * Reference to a field of type 'QueryMode'
+ */
+export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
     
 
 
