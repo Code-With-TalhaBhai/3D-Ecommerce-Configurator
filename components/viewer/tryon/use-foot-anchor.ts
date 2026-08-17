@@ -63,6 +63,7 @@ export function useFootAnchor(
 ) {
   const framesRef = useRef<FootAnchorFrame[]>([idleFootFrame("left"), idleFootFrame("right")]);
   const [status, setStatus] = useState<AnchorStatus>("loading");
+  const frameCounterRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) {
@@ -102,10 +103,32 @@ export function useFootAnchor(
           }
           lastVideoTime = video.currentTime;
 
-          const result = landmarker.detectForVideo(video, performance.now());
+          let result: ReturnType<typeof landmarker.detectForVideo>;
+          try {
+            result = landmarker.detectForVideo(video, performance.now());
+          } catch (err) {
+            // See the matching comment in use-wrist-anchor.ts — an uncaught
+            // throw here would otherwise silently freeze the loop on
+            // whatever status was last shown, indistinguishable from "no
+            // foot found yet".
+            console.error("[try-on] foot detectForVideo threw", err);
+            framesRef.current = [idleFootFrame("left", "error"), idleFootFrame("right", "error")];
+            setStatus("error");
+            return;
+          }
+
           const landmarks = result.landmarks[0];
           const world = result.worldLandmarks[0];
           const now = performance.now();
+
+          if (process.env.NODE_ENV === "development") {
+            frameCounterRef.current += 1;
+            if (frameCounterRef.current % 60 === 1) {
+              console.debug(
+                `[try-on] foot detect tick #${frameCounterRef.current}: poses=${result.landmarks.length}`,
+              );
+            }
+          }
 
           const nextFrames: FootAnchorFrame[] = SIDES.map(({ side, ankle, heel, toe }) => {
             if (!landmarks || !world) {
@@ -170,7 +193,8 @@ export function useFootAnchor(
 
         scheduleNext();
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[try-on] failed to load PoseLandmarker", err);
         if (!cancelled) {
           framesRef.current = [idleFootFrame("left", "error"), idleFootFrame("right", "error")];
           setStatus("error");

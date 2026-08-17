@@ -42,6 +42,7 @@ const PINKY_MCP = 17;
 export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null>, enabled: boolean) {
   const frameRef = useRef<AnchorFrame>(idleAnchorFrame());
   const [status, setStatus] = useState<AnchorStatus>("loading");
+  const frameCounterRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) {
@@ -84,9 +85,34 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
           }
           lastVideoTime = video.currentTime;
 
-          const result = landmarker.detectForVideo(video, performance.now());
+          let result: ReturnType<typeof landmarker.detectForVideo>;
+          try {
+            result = landmarker.detectForVideo(video, performance.now());
+          } catch (err) {
+            // A thrown detectForVideo is otherwise silent: it happens inside
+            // a requestVideoFrameCallback callback, so an uncaught exception
+            // here would just kill the loop mid-flight and freeze the UI on
+            // whatever hint text was showing (indistinguishable from "no
+            // hand found yet" — exactly the bug this surfaces instead of
+            // hiding). Surface it as a real error state and stop retrying,
+            // since a WASM/graph fault tends to repeat every frame.
+            console.error("[try-on] wrist detectForVideo threw", err);
+            frameRef.current = idleAnchorFrame("error");
+            setStatus("error");
+            return;
+          }
+
           const landmarks = result.landmarks[0];
           const world = result.worldLandmarks[0];
+
+          if (process.env.NODE_ENV === "development") {
+            frameCounterRef.current += 1;
+            if (frameCounterRef.current % 60 === 1) {
+              console.debug(
+                `[try-on] wrist detect tick #${frameCounterRef.current}: hands=${result.landmarks.length}`,
+              );
+            }
+          }
 
           if (!landmarks || !world) {
             frameRef.current = { ...frameRef.current, confidence: 0, status: "searching" };
@@ -140,7 +166,8 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
 
         scheduleNext();
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[try-on] failed to load HandLandmarker", err);
         if (!cancelled) {
           frameRef.current = idleAnchorFrame("error");
           setStatus("error");

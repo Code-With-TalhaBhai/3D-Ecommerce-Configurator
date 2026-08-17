@@ -32,7 +32,16 @@ export function getHandLandmarker(): Promise<HandLandmarker> {
   if (!handLandmarkerPromise) {
     handLandmarkerPromise = loadFileset().then((fileset) =>
       HandLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: HAND_LANDMARKER_MODEL_PATH, delegate: "GPU" },
+        // CPU, not GPU: the try-on overlay already runs a transparent R3F
+        // <Canvas> (its own WebGL context) on the same page. MediaPipe's GPU
+        // delegate opens a second WebGL context for inference, and on some
+        // mobile GPU drivers two concurrent WebGL contexts contend for
+        // resources in ways that don't throw — they just produce degenerate
+        // or empty detection results, which looks identical to "no hand in
+        // frame" from the outside. CPU delegate is slower per-frame but has
+        // no such contention; revisit GPU once correctness is confirmed
+        // on-device.
+        baseOptions: { modelAssetPath: HAND_LANDMARKER_MODEL_PATH, delegate: "CPU" },
         runningMode: "VIDEO",
         numHands: 1,
       }),
@@ -47,7 +56,8 @@ export function getPoseLandmarker(): Promise<PoseLandmarker> {
   if (!poseLandmarkerPromise) {
     poseLandmarkerPromise = loadFileset().then((fileset) =>
       PoseLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: POSE_LANDMARKER_MODEL_PATH, delegate: "GPU" },
+        // CPU delegate — same reasoning as HandLandmarker above.
+        baseOptions: { modelAssetPath: POSE_LANDMARKER_MODEL_PATH, delegate: "CPU" },
         runningMode: "VIDEO",
         numPoses: 1,
       }),
