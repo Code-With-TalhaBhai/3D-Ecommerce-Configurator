@@ -17,8 +17,9 @@
 | Payments | Stripe-hosted Checkout (redirect flow) |
 | Realtime chat | Supabase Realtime broadcast |
 | AR ("place in room") | WebXR Device API via `@react-three/xr` 6 (hit-test + DOM overlay), Android only |
+| Chatbot backend | Separate FastAPI service (`backend/`, `uv`-managed) — LangGraph + LangChain, `langchain-groq` (Groq LPU inference, not xAI's Grok), SQLAlchemy/asyncpg against the same Supabase Postgres |
 
-Path alias: `"@/*": ["./*"]` — every import is root-relative.
+Path alias: `"@/*": ["./*"]` — every import is root-relative in the Next.js app. The `backend/` Python service is a **separate project** with its own `pyproject.toml`/`uv.lock` and is not part of this import graph.
 
 ---
 
@@ -34,6 +35,7 @@ final-year-project/
 ├── prisma/                    ← schema.prisma + migrations
 ├── public/                    ← Static assets served at /
 ├── infra/                     ← S3 CORS JSON (manual ops artifact)
+├── backend/                   ← Separate FastAPI + LangGraph chatbot service (uv-managed Python)
 ├── specs/                     ← Project docs (this file, AGENTS, progress, issues, PHR)
 ├── auth.ts                    ← NextAuth v5 — Node-side (Prisma + bcrypt)
 ├── auth.config.ts             ← NextAuth v5 — edge-safe config (used by proxy.ts)
@@ -254,6 +256,42 @@ Enums: `Role` (ADMIN / VENDOR / CUSTOMER) · `ProductStatus` (PENDING / APPROVED
 
 ---
 
+## `backend/` — Chatbot service (separate Python app)
+
+A standalone `uv`-managed FastAPI project, sibling to the Next.js app rather than inside it — LangChain/LangGraph's Python ecosystem is where the tooling actually lives, and this keeps that dependency tree out of the Vercel-deployed Next.js build. Not yet called by the frontend (see progress-update.md's Marketplace Chatbot Follow-ups).
+
+```
+backend/
+├── pyproject.toml         ← uv-managed deps: fastapi[standard], langchain, langgraph, langchain-groq, sqlalchemy, asyncpg, pydantic-settings
+├── uv.lock
+├── .python-version        ← 3.12
+├── .env / .env.example    ← DATABASE_URL (same Supabase instance as the root app), GROQ_API_KEY, GROQ_MODEL, CORS_ORIGINS
+├── .gitignore              ← .venv/, __pycache__/, .env
+└── app/
+    ├── main.py             ← FastAPI() + CORS + /health, includes the chat router
+    ├── config.py           ← pydantic-settings Settings (env-driven)
+    ├── db.py                ← async SQLAlchemy engine over asyncpg; rewrites the Prisma-authored pooled URL (strips pgbouncer/connection_limit, disables asyncpg's statement cache — required for pgbouncer transaction-pooling mode)
+    ├── schemas.py           ← ChatMessage / ChatRequest / ChatResponse (Pydantic)
+    ├── routers/
+    │   └── chat.py          ← POST /chat — converts request messages to LangChain messages, runs the graph, returns { reply, on_topic }
+    └── agent/
+        ├── state.py         ← ChatState (messages + on_topic, via LangGraph's add_messages reducer)
+        ├── llm.py            ← get_llm() — cached ChatGroq instance
+        ├── prompts.py        ← GUARDRAIL_SYSTEM_PROMPT + AGENT_SYSTEM_PROMPT
+        ├── tools.py           ← 5 read-only, parameterized-SQL tools scoped to live catalog data only (see below)
+        ├── guardrail.py       ← classify_topic (structured-output topic gate) + refuse (canned decline)
+        ├── agent_node.py      ← call_agent — ReAct tool-calling node bound to TOOLS
+        └── graph.py           ← StateGraph wiring: guardrail → agent ⇄ tools (ToolNode/tools_condition) → END, or guardrail → refuse → END
+```
+
+**The LangGraph workflow** (`graph.py`): `START → guardrail`, then a conditional edge sends on-topic messages to `agent` (which loops with `tools` via `tools_condition` until it stops calling tools, then `END`) or off-topic messages straight to `refuse → END`. The guardrail is a dedicated classification node — not just a system-prompt instruction — so an off-topic message never reaches tool access at all.
+
+**Tool scope is deliberately narrow**: `search_products`, `get_product_details`, `list_categories`, `list_vendors`, `list_active_promo_codes` — all read-only, all hard-filtered to `Product.status = 'APPROVED'` (never leaks PENDING/REJECTED listings), and there is **no** `Order`/`Message`/`User` tool. This endpoint has no per-caller auth context yet, so anything from those tables would risk leaking one customer's data into another's chat session. Queries are hand-written parameterized SQL (via SQLAlchemy `text()`), not a free-form NL-to-SQL agent — bounds what the LLM can ever ask the database for, regardless of how it's prompted.
+
+Run locally: `cd backend && uv run fastapi dev` (or `uv run uvicorn app.main:app --reload`). Requires `DATABASE_URL` and a real `GROQ_API_KEY` in `backend/.env`.
+
+---
+
 ## `specs/`
 
 - `AGENTS.md` (project root) — Functional spec.
@@ -419,3 +457,4 @@ setArOpen(true)
 - **Cart persistence key**: `3dmkt:cart:v1` (versioned, so a future schema bump can wipe and rehydrate cleanly).
 - **AR is WebXR-only and feature-detected, never shown-and-broken**: the "Place In Room" entry point on `/products/[slug]` only renders after `navigator.xr?.isSessionSupported("immersive-ar")` resolves `true` — Android Chrome/Edge on ARCore-class hardware today, hidden everywhere else (iOS Safari has no WebXR support). `@react-three/xr` only loads once that button is actually clicked (`dynamic(..., { ssr: false })`), so unsupported devices pay zero extra bundle cost.
 - **Loading feedback is two-layered**: every navigable segment gets a `loading.tsx` (segment-level Suspense fallback — skeleton when chrome is preserved, `<PageLoader>` when the page replaces full-screen) **and** the globally mounted `<RouteProgress>` fires the moment a same-origin link is clicked (covers Links, `router.push`/`router.replace`, and back/forward). Re-use `Spinner` for in-button waits, `Skeleton` for inline placeholders, `PageLoader` for full-screen / full-section waits.
+- **The chatbot backend is a separate app, not a Next.js API route**: `backend/` has its own `pyproject.toml`/`uv.lock` and runs as its own process (`uv run fastapi dev`). It reuses the Next.js app's `DATABASE_URL` (same Supabase Postgres) but nothing else is shared — no import path crosses between the two. Any new chatbot capability belongs in `backend/app/agent/`, not in `app/api/`.
