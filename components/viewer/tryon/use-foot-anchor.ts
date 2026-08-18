@@ -64,6 +64,9 @@ export function useFootAnchor(
   const framesRef = useRef<FootAnchorFrame[]>([idleFootFrame("left"), idleFootFrame("right")]);
   const [status, setStatus] = useState<AnchorStatus>("loading");
   const frameCounterRef = useRef(0);
+  // Dev-only, on-screen (not just console) diagnostic text — see the
+  // matching overlay in tryon-viewer.tsx.
+  const [debugText, setDebugText] = useState("");
 
   useEffect(() => {
     if (!enabled) {
@@ -126,11 +129,6 @@ export function useFootAnchor(
 
           if (process.env.NODE_ENV === "development") {
             frameCounterRef.current += 1;
-            if (frameCounterRef.current % 60 === 1) {
-              console.debug(
-                `[try-on] foot detect tick #${frameCounterRef.current}: poses=${result.landmarks.length}`,
-              );
-            }
           }
 
           const nextFrames: FootAnchorFrame[] = SIDES.map(({ side, ankle, heel, toe }) => {
@@ -144,6 +142,12 @@ export function useFootAnchor(
               landmarks[heel]?.visibility ?? 0,
               landmarks[toe]?.visibility ?? 0,
             );
+
+            if (process.env.NODE_ENV === "development" && side === "left" && frameCounterRef.current % 20 === 1) {
+              const text = `#${frameCounterRef.current} poses=${result.landmarks.length} video=${video.videoWidth}x${video.videoHeight} rs=${video.readyState} L.conf=${confidence.toFixed(2)} (min ${FOOT_MIN_CONFIDENCE})`;
+              console.debug(`[try-on] foot ${text}`);
+              setDebugText(text);
+            }
 
             if (confidence < FOOT_MIN_CONFIDENCE) {
               stableSinceMs[side] = null;
@@ -213,5 +217,5 @@ export function useFootAnchor(
     };
   }, [enabled, videoRef, realFootLengthM]);
 
-  return { framesRef, status };
+  return { framesRef, status, debugText };
 }

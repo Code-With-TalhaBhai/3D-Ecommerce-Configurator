@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { X } from "lucide-react";
 
@@ -72,6 +72,7 @@ export function TryOnViewer({
   const { videoRef, status: cameraStatus, error: cameraError, start, stop } = useCameraStream();
   const [trackingStatus, setTrackingStatus] = useState<AnchorStatus>("loading");
   const [ukSize, setUkSize] = useState(9);
+  const [debugText, setDebugText] = useState("");
 
   const streaming = cameraStatus === "streaming";
   const box = useLetterboxSize(videoRef, streaming);
@@ -122,15 +123,31 @@ export function TryOnViewer({
       {streaming && box && (
         <div className="absolute" style={{ width: box.width, height: box.height }}>
           <Canvas gl={{ alpha: true, antialias: true }} camera={{ fov: CAMERA_FOV_DEG, position: [0, 0, 0] }}>
-            <TryOnScene
-              anchor={anchor}
-              src={src}
-              videoRef={videoRef}
-              enabled={streaming}
-              ukSize={ukSize}
-              onStatusChange={setTrackingStatus}
-            />
+            {/* Defense-in-depth: useStyledScene's useGLTF() suspends while
+                the GLB is loading. In practice this product's GLB is always
+                already cached by the on-page ConfigurableViewer by the time
+                the try-on button can even be tapped (gated on modelReady),
+                so this rarely if ever actually suspends — but without a
+                boundary here, a genuine cache miss would throw an uncaught
+                error instead of showing a brief loading state. */}
+            <Suspense fallback={null}>
+              <TryOnScene
+                anchor={anchor}
+                src={src}
+                videoRef={videoRef}
+                enabled={streaming}
+                ukSize={ukSize}
+                onStatusChange={setTrackingStatus}
+                onDebug={setDebugText}
+              />
+            </Suspense>
           </Canvas>
+        </div>
+      )}
+
+      {process.env.NODE_ENV === "development" && debugText && (
+        <div className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded bg-black/70 px-2 py-1 font-mono text-[10px] text-white">
+          {debugText}
         </div>
       )}
 

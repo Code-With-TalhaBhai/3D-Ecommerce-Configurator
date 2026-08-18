@@ -43,6 +43,10 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
   const frameRef = useRef<AnchorFrame>(idleAnchorFrame());
   const [status, setStatus] = useState<AnchorStatus>("loading");
   const frameCounterRef = useRef(0);
+  // Dev-only, on-screen (not just console) diagnostic text — see the
+  // matching overlay in tryon-viewer.tsx. Lets a phone with no attached
+  // debugger show exactly what the detector is seeing.
+  const [debugText, setDebugText] = useState("");
 
   useEffect(() => {
     if (!enabled) {
@@ -114,10 +118,10 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
 
           if (process.env.NODE_ENV === "development") {
             frameCounterRef.current += 1;
-            if (frameCounterRef.current % 60 === 1) {
-              console.debug(
-                `[try-on] wrist detect tick #${frameCounterRef.current}: hands=${result.landmarks.length}`,
-              );
+            if (frameCounterRef.current % 20 === 1) {
+              const text = `#${frameCounterRef.current} hands=${result.landmarks.length} video=${video.videoWidth}x${video.videoHeight} rs=${video.readyState}`;
+              console.debug(`[try-on] wrist ${text}`);
+              setDebugText(text);
             }
           }
 
@@ -133,6 +137,12 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
             landmarks[INDEX_MCP]?.visibility ?? 1,
             landmarks[PINKY_MCP]?.visibility ?? 1,
           );
+
+          if (process.env.NODE_ENV === "development" && frameCounterRef.current % 20 === 1) {
+            setDebugText(
+              (t) => `${t} conf=${confidence.toFixed(2)} (min ${WRIST_MIN_CONFIDENCE})`,
+            );
+          }
 
           if (confidence < WRIST_MIN_CONFIDENCE) {
             frameRef.current = { ...frameRef.current, confidence, status: "lost" };
@@ -190,5 +200,5 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
     };
   }, [enabled, videoRef]);
 
-  return { frameRef, status };
+  return { frameRef, status, debugText };
 }

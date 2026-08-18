@@ -112,19 +112,25 @@ function WristTryOnScene({
   videoRef,
   enabled,
   onStatusChange,
+  onDebug,
 }: {
   src: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   enabled: boolean;
   onStatusChange?: (status: AnchorStatus) => void;
+  onDebug?: (text: string) => void;
 }) {
   const { scene } = useStyledScene(src);
-  const { frameRef, status } = useWristAnchor(videoRef, enabled);
+  const { frameRef, status, debugText } = useWristAnchor(videoRef, enabled);
   const getFrame = useCallback(() => frameRef.current, [frameRef]);
 
   useEffect(() => {
     onStatusChange?.(status);
   }, [status, onStatusChange]);
+
+  useEffect(() => {
+    if (debugText) onDebug?.(debugText);
+  }, [debugText, onDebug]);
 
   const measuredDiameter = useMeasuredFootprint(scene);
   const modelScale = measuredDiameter > 0 ? WATCH_CASE_DIAMETER_M / measuredDiameter : 1;
@@ -152,20 +158,26 @@ function FootTryOnScene({
   enabled,
   ukSize,
   onStatusChange,
+  onDebug,
 }: {
   src: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   enabled: boolean;
   ukSize: number;
   onStatusChange?: (status: AnchorStatus) => void;
+  onDebug?: (text: string) => void;
 }) {
   const { scene } = useStyledScene(src);
   const footLengthM = realFootLengthM(ukSize);
-  const { framesRef, status } = useFootAnchor(videoRef, enabled, footLengthM);
+  const { framesRef, status, debugText } = useFootAnchor(videoRef, enabled, footLengthM);
 
   useEffect(() => {
     onStatusChange?.(status);
   }, [status, onStatusChange]);
+
+  useEffect(() => {
+    if (debugText) onDebug?.(debugText);
+  }, [debugText, onDebug]);
 
   // Two independent styled instances — one per foot slot — since the same
   // Object3D can't be placed at two transforms simultaneously. clone(true)
@@ -210,6 +222,7 @@ export function TryOnScene({
   enabled,
   ukSize,
   onStatusChange,
+  onDebug,
 }: {
   anchor: "wrist" | "foot";
   src: string;
@@ -217,11 +230,27 @@ export function TryOnScene({
   enabled: boolean;
   ukSize: number;
   onStatusChange?: (status: AnchorStatus) => void;
+  onDebug?: (text: string) => void;
 }) {
   if (anchor === "wrist") {
-    return <WristTryOnScene src={src} videoRef={videoRef} enabled={enabled} onStatusChange={onStatusChange} />;
+    return (
+      <WristTryOnScene
+        src={src}
+        videoRef={videoRef}
+        enabled={enabled}
+        onStatusChange={onStatusChange}
+        onDebug={onDebug}
+      />
+    );
   }
   return (
-    <FootTryOnScene src={src} videoRef={videoRef} enabled={enabled} ukSize={ukSize} onStatusChange={onStatusChange} />
+    <FootTryOnScene
+      src={src}
+      videoRef={videoRef}
+      enabled={enabled}
+      ukSize={ukSize}
+      onStatusChange={onStatusChange}
+      onDebug={onDebug}
+    />
   );
 }
