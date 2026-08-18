@@ -137,11 +137,14 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
             return;
           }
 
-          const confidence = Math.min(
-            landmarks[WRIST]?.visibility ?? 1,
-            landmarks[INDEX_MCP]?.visibility ?? 1,
-            landmarks[PINKY_MCP]?.visibility ?? 1,
-          );
+          // NormalizedLandmark.visibility is a Pose-specific occlusion
+          // concept — HandLandmarker doesn't populate it (it reads back as
+          // 0 on every landmark, every frame, confirmed via the on-screen
+          // debug overlay: real hands in clear frame still showed
+          // conf=0.00, permanently failing the gate below regardless of
+          // detection quality). The correct confidence signal for hand
+          // detection quality is the handedness classification score.
+          const confidence = result.handedness[0]?.[0]?.score ?? 1;
 
           if (showThisTick) {
             setDebugText((t) => `${t} conf=${confidence.toFixed(2)} (min ${WRIST_MIN_CONFIDENCE})`);

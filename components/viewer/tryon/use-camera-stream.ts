@@ -38,7 +38,13 @@ export function useCameraStream() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        // `ideal` (not `min`/exact) so devices that can't hit 720p still
+        // connect at their next-best resolution rather than failing outright.
+        // Without this, some devices/browsers negotiate a surprisingly low
+        // default (observed: 280x640) — workable for detection but noisy for
+        // the pixel-distance-based depth estimate in camera-math.ts, which
+        // gets more precise with more pixels to measure across.
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
       streamRef.current = stream;
