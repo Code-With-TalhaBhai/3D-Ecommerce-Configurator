@@ -47,11 +47,17 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
   // matching overlay in tryon-viewer.tsx. Lets a phone with no attached
   // debugger show exactly what the detector is seeing.
   const [debugText, setDebugText] = useState("");
+  // Estimated distance (meters) from camera to wrist — drives the "move
+  // closer"/"move back" hint in tryon-viewer.tsx. Updated more often than
+  // debugText (every few ticks, not every 20th) so the hint feels responsive
+  // as the customer actually moves.
+  const [distanceM, setDistanceM] = useState<number | null>(null);
 
   useEffect(() => {
     if (!enabled) {
       frameRef.current = idleAnchorFrame("loading");
       setStatus("loading");
+      setDistanceM(null);
       return;
     }
 
@@ -133,6 +139,7 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
           if (!landmarks || !world) {
             frameRef.current = { ...frameRef.current, confidence: 0, status: "searching" };
             setTrackedStatus("searching");
+            setDistanceM(null);
             scheduleNext();
             return;
           }
@@ -184,6 +191,9 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
 
           frameRef.current = { position, quaternion, scale: 1, confidence, status: "tracking" };
           setTrackedStatus("tracking");
+          if (frameCounterRef.current % 5 === 0) {
+            setDistanceM(depthM);
+          }
           scheduleNext();
         };
 
@@ -206,5 +216,5 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
     };
   }, [enabled, videoRef]);
 
-  return { frameRef, status, debugText };
+  return { frameRef, status, debugText, distanceM };
 }

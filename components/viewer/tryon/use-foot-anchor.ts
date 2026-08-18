@@ -67,11 +67,16 @@ export function useFootAnchor(
   // Dev-only, on-screen (not just console) diagnostic text — see the
   // matching overlay in tryon-viewer.tsx.
   const [debugText, setDebugText] = useState("");
+  // Estimated distance (meters) to whichever foot is currently tracked
+  // (left preferred when both are) — drives the "move closer"/"move back"
+  // hint in tryon-viewer.tsx.
+  const [distanceM, setDistanceM] = useState<number | null>(null);
 
   useEffect(() => {
     if (!enabled) {
       framesRef.current = [idleFootFrame("left"), idleFootFrame("right")];
       setStatus("loading");
+      setDistanceM(null);
       return;
     }
 
@@ -202,6 +207,12 @@ export function useFootAnchor(
                 ? "lost"
                 : "searching";
           setStatus((s) => (s === overall ? s : overall));
+
+          if (frameCounterRef.current % 5 === 0) {
+            const primary = nextFrames.find((f) => f.status === "tracking" && f.position);
+            setDistanceM(primary?.position ? -primary.position.z : null);
+          }
+
           scheduleNext();
         };
 
@@ -224,5 +235,5 @@ export function useFootAnchor(
     };
   }, [enabled, videoRef, realFootLengthM]);
 
-  return { framesRef, status, debugText };
+  return { framesRef, status, debugText, distanceM };
 }

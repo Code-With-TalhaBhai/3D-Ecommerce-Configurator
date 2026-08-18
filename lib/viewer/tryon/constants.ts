@@ -25,6 +25,10 @@
  * |                               | must stay above threshold before status flips to "tracking".             |
  * | SMOOTHING_POSITION_LERP       | Model position jitters (raise) or feels laggy/rubbery (lower).            |
  * | SMOOTHING_ROTATION_SLERP      | Model rotation jitters (raise) or feels laggy/rubbery (lower).            |
+ * | WRIST_COMFORTABLE_MIN/MAX_M   | "Move closer"/"move back" hint shows too eagerly (widen) or too rarely    |
+ * |                               | (narrow) — the depth range the wrist-distance estimate is trusted within. |
+ * | FOOT_COMFORTABLE_MIN/MAX_M    | Same, for the foot distance hint.                                          |
+ * | MANUAL_SCALE_STEP             | How much each tap of the manual +/- scale button changes size by.         |
  */
 
 /** Reference hand width in meters (MCP-5 ↔ MCP-17), used to estimate depth
@@ -75,6 +79,28 @@ export const SMOOTHING_POSITION_LERP = 0.4;
 /** Per-frame slerp factor for anchor rotation smoothing (0..1, higher = less
  * smoothing / more responsive). */
 export const SMOOTHING_ROTATION_SLERP = 0.4;
+
+/** Comfortable working-distance range (meters) for the wrist-held-in-front-
+ * of-camera pose. Outside this range the depth estimate is still computed
+ * but the placement gets progressively less reliable (very close = motion
+ * blur / out of focus; very far = the palm-width reference shrinks to only
+ * a few pixels, amplifying pixel-quantization noise). Unverified guesses —
+ * tune from on-device testing. */
+export const WRIST_COMFORTABLE_MIN_M = 0.15;
+export const WRIST_COMFORTABLE_MAX_M = 0.55;
+
+/** Comfortable working-distance range (meters) for the "stand back, phone
+ * at chest height" foot pose. Unverified guesses — tune from on-device
+ * testing. */
+export const FOOT_COMFORTABLE_MIN_M = 0.6;
+export const FOOT_COMFORTABLE_MAX_M = 2.5;
+
+/** Multiplicative step per tap of the manual scale +/- control — a
+ * deliberate escape hatch for the auto-computed scale (WATCH_CASE_DIAMETER_M
+ * ÷ the model's own measured footprint) being wrong for a specific GLB's
+ * authoring quirks, since there's no way to guarantee every vendor-uploaded
+ * asset measures cleanly. */
+export const MANUAL_SCALE_STEP = 1.15;
 
 /** Self-hosted MediaPipe asset paths (never a CDN — see progress-update.md
  * "Self-host the .task model files and the MediaPipe WASM bundle"). */
