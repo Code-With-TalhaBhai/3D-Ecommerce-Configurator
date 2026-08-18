@@ -85,7 +85,7 @@ export function TryOnViewer({
     if (!streaming) return null;
     switch (trackingStatus) {
       case "loading":
-        return "Loading the tracker…";
+        return "Loading the tracker — first load can take a moment…";
       case "searching":
         return anchor === "wrist"
           ? "Hold your wrist out in front of the phone"

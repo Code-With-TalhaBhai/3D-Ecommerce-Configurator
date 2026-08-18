@@ -78,11 +78,14 @@ export function useFootAnchor(
     let lastVideoTime = -1;
     const stableSinceMs: Record<FootSide, number | null> = { left: null, right: null };
 
-    setStatus("searching");
+    // See the matching comment in use-wrist-anchor.ts — stay "loading" until
+    // the landmarker has actually finished loading, not "searching".
+    setStatus("loading");
 
     getPoseLandmarker()
       .then((landmarker) => {
         if (cancelled) return;
+        setStatus("searching");
 
         const scheduleNext = () => {
           if (cancelled) return;

@@ -56,11 +56,18 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
     let vfcHandle: number | null = null;
     let lastVideoTime = -1;
 
-    setStatus("searching");
+    // Stay in "loading" (not "searching") until the landmarker — WASM +
+    // ~6-8MB model file, fetched on first use — has actually finished
+    // loading. Setting "searching" here immediately would make a slow or
+    // still-downloading model indistinguishable from "loaded but no hand
+    // detected yet", which is exactly the confusing state this hook used to
+    // put the UI in.
+    setStatus("loading");
 
     getHandLandmarker()
       .then((landmarker) => {
         if (cancelled) return;
+        setStatus("searching");
 
         const setTrackedStatus = (next: AnchorStatus) => {
           if (frameRef.current.status !== next) setStatus(next);

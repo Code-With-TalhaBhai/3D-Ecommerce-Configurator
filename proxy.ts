@@ -7,5 +7,8 @@ import { authConfig } from "@/auth.config";
 export default NextAuth(authConfig).auth;
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.svg|.*\\.png).*)"],
+  // /mediapipe/* excluded: large (multi-MB) static WASM/model assets for
+  // virtual try-on, public and unauthenticated — running them through the
+  // auth check on every request is pure overhead with no security benefit.
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|mediapipe|.*\\.svg|.*\\.png).*)"],
 };
