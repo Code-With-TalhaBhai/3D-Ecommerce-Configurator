@@ -4,6 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { CartClearer } from "./cart-clearer";
+import { OrderConfetti } from "./order-confetti";
 
 export const metadata = { title: "Order received" };
 
@@ -42,6 +43,7 @@ export default async function CheckoutSuccessPage({
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
       <CartClearer />
+      <OrderConfetti />
       <div className="flex flex-col items-center gap-4 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
           <CheckCircle2 className="h-7 w-7" />
