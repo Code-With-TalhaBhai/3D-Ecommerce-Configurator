@@ -12,6 +12,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Product Categories (cross-sprint) — complete
 - Per-Part Color Customization (cross-sprint, configurator) — complete
 - Augmented Reality Place-in-Room (cross-sprint, configurator) — complete
+- Order Celebration Effect (cross-sprint, checkout) — complete
 
 ## Current Goal
 - Sprint 11-12 (Testing & Polish: E2E tests, performance benchmarking, accessibility audit, deployment) — not started
@@ -219,6 +220,10 @@ Goal: let vendors classify each product under a category and let customers filte
   - **Shared material helpers extracted** to `lib/viewer/material.ts` (`FINISH_MAP`, `copyMaterialSafely`, `upgradeToPhysical`, `derivePartId`) — previously private to `configurable-viewer.tsx`. `ConfigurableViewer`'s own behavior is unchanged (pure relocation, verified by type-check + build); `ARViewer` imports the same table so a "Matte" pick, say, resolves to the identical roughness/metalness/clearcoat numbers in both the on-page viewer and AR. `derivePartId` in particular has to produce byte-identical keys to what `ConfigurableViewer` dispatches via `setParts` — both derive `name:${materialName.toLowerCase()}` (falling back to `mesh:${uuid}:${index}`) — otherwise `viewer.partColors[partId]` lookups in AR would silently miss.
   - **Feature detection, not a try-and-fail button**: `product-configurator.tsx` checks `navigator.xr?.isSessionSupported("immersive-ar")` in a `useEffect` on mount and only renders the "Place In Room" pill (top-right of the viewer frame, shown once `modelReady`) when it resolves `true`. Only that one-line check runs eagerly — `@react-three/xr` and the rest of `ar-viewer.tsx` load on demand through the existing `dynamic(..., { ssr: false })` pattern already used for the other viewer components, so devices that can't do AR (all of iOS today) pay zero extra bundle cost.
   - `ARViewer` mounts through `createPortal(..., document.body)` from `product-configurator.tsx` so its `fixed inset-0` overlay can't be clipped by any ancestor that happens to establish a new containing block.
+
+### Order Celebration Effect (cross-sprint)
+
+- Feature 96: Checkout success confetti — `app/checkout/success/order-confetti.tsx` is a client island (same pattern as `cart-clearer.tsx`) that fires a `canvas-confetti` burst once on mount of `/checkout/success` (real-order branch only, not the "couldn't find that order" fallback): two brief side-cannon streams from the bottom corners plus one centered burst, all in the existing zinc palette so it stays on-brand rather than introducing rainbow confetti. Skips entirely when `prefers-reduced-motion: reduce` is set. `canvas-confetti` + `@types/canvas-confetti` added as dependencies (~3 KB gzipped, canvas-based, no WebGL/Three.js involvement — independent of the product viewer stack).
 
 ## In Progress
 
