@@ -86,9 +86,21 @@ export function TryOnViewer({
   // in tryon-scene.tsx for why this exists at all.
   const [manualScale, setManualScale] = useState(1);
   const [manualRotationRad, setManualRotationRad] = useState(0);
+  // Sticky, not the live trackingStatus: gating the manual controls on the
+  // live status meant they'd unmount/remount every time confidence briefly
+  // dipped below the tracking threshold between frames, making them
+  // difficult or impossible to actually tap. Once tracking has locked on at
+  // least once this session, keep the controls available regardless of
+  // momentary drops (they only affect a manual override the customer is
+  // actively fiddling with anyway).
+  const [hasEverTracked, setHasEverTracked] = useState(false);
 
   const streaming = cameraStatus === "streaming";
   const box = useLetterboxSize(videoRef, streaming);
+
+  useEffect(() => {
+    if (trackingStatus === "tracking") setHasEverTracked(true);
+  }, [trackingStatus]);
 
   function handleClose() {
     stop();
@@ -174,15 +186,26 @@ export function TryOnViewer({
 
       {/* Unconditional while this feature is still being verified
           on-device — see the matching comment in use-wrist-anchor.ts on why
-          this isn't NODE_ENV-gated right now. */}
+          this isn't NODE_ENV-gated right now. Two lines: the detector's own
+          diagnostics, and this component's live state (status/distance/
+          manual-adjustment values) — the second line exists specifically so
+          "is the manual control actually doing anything" and "is distance
+          even being computed" are answerable by reading the screen instead
+          of inferring from how the model looks. */}
       {debugText && (
         <div className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded bg-black/70 px-2 py-1 font-mono text-[10px] text-white">
           {debugText}
         </div>
       )}
+      {streaming && (
+        <div className="pointer-events-none absolute left-1/2 top-[6.5rem] -translate-x-1/2 rounded bg-black/70 px-2 py-1 font-mono text-[10px] text-white">
+          status={trackingStatus} dist={distanceM != null ? `${distanceM.toFixed(2)}m` : "—"} scale=
+          {manualScale.toFixed(2)}x rot={Math.round((manualRotationRad * 180) / Math.PI) % 360}°
+        </div>
+      )}
 
       {distanceHint && (
-        <div className="pointer-events-none absolute left-1/2 top-28 -translate-x-1/2 rounded-full bg-amber-500/90 px-3 py-1.5 text-xs font-semibold text-amber-950 shadow-lg">
+        <div className="pointer-events-none absolute left-1/2 top-40 -translate-x-1/2 rounded-full bg-amber-500/90 px-3 py-1.5 text-xs font-semibold text-amber-950 shadow-lg">
           {distanceHint}
         </div>
       )}
@@ -202,7 +225,7 @@ export function TryOnViewer({
         <div className="pointer-events-auto flex flex-col items-center gap-3 pb-4">
           {anchor === "foot" && streaming && <SizePicker value={ukSize} onChange={setUkSize} />}
 
-          {trackingStatus === "tracking" && (
+          {hasEverTracked && (
             <div className="flex items-center gap-2 rounded-full bg-black/55 p-1.5 backdrop-blur-md">
               <span className="pl-2 pr-1 text-[10px] font-medium uppercase tracking-wide text-white/60">
                 Doesn&apos;t look right?
