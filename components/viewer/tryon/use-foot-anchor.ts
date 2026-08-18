@@ -127,8 +127,17 @@ export function useFootAnchor(
           const world = result.worldLandmarks[0];
           const now = performance.now();
 
-          if (process.env.NODE_ENV === "development") {
-            frameCounterRef.current += 1;
+          // Unconditional (not NODE_ENV-gated) while this feature is still
+          // being verified on-device — see the matching comment in
+          // use-wrist-anchor.ts. Set before the per-side map below (not
+          // inside it) so it still fires even when zero poses are detected
+          // at all — that's the single most important case to see.
+          frameCounterRef.current += 1;
+          const showThisTick = frameCounterRef.current % 20 === 1;
+          if (showThisTick) {
+            const text = `#${frameCounterRef.current} poses=${result.landmarks.length} video=${video.videoWidth}x${video.videoHeight} rs=${video.readyState}`;
+            console.debug(`[try-on] foot ${text}`);
+            setDebugText(text);
           }
 
           const nextFrames: FootAnchorFrame[] = SIDES.map(({ side, ankle, heel, toe }) => {
@@ -143,10 +152,8 @@ export function useFootAnchor(
               landmarks[toe]?.visibility ?? 0,
             );
 
-            if (process.env.NODE_ENV === "development" && side === "left" && frameCounterRef.current % 20 === 1) {
-              const text = `#${frameCounterRef.current} poses=${result.landmarks.length} video=${video.videoWidth}x${video.videoHeight} rs=${video.readyState} L.conf=${confidence.toFixed(2)} (min ${FOOT_MIN_CONFIDENCE})`;
-              console.debug(`[try-on] foot ${text}`);
-              setDebugText(text);
+            if (side === "left" && showThisTick) {
+              setDebugText((t) => `${t} L.conf=${confidence.toFixed(2)} (min ${FOOT_MIN_CONFIDENCE})`);
             }
 
             if (confidence < FOOT_MIN_CONFIDENCE) {

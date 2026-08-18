@@ -145,7 +145,10 @@ export function TryOnViewer({
         </div>
       )}
 
-      {process.env.NODE_ENV === "development" && debugText && (
+      {/* Unconditional while this feature is still being verified
+          on-device — see the matching comment in use-wrist-anchor.ts on why
+          this isn't NODE_ENV-gated right now. */}
+      {debugText && (
         <div className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded bg-black/70 px-2 py-1 font-mono text-[10px] text-white">
           {debugText}
         </div>

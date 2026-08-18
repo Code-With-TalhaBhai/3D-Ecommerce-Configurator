@@ -116,13 +116,18 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
           const landmarks = result.landmarks[0];
           const world = result.worldLandmarks[0];
 
-          if (process.env.NODE_ENV === "development") {
-            frameCounterRef.current += 1;
-            if (frameCounterRef.current % 20 === 1) {
-              const text = `#${frameCounterRef.current} hands=${result.landmarks.length} video=${video.videoWidth}x${video.videoHeight} rs=${video.readyState}`;
-              console.debug(`[try-on] wrist ${text}`);
-              setDebugText(text);
-            }
+          // Unconditional (not NODE_ENV-gated) while this feature is still
+          // being verified on-device — a mid-debugging session is exactly
+          // the wrong time to discover the diagnostics were silently
+          // compiled out because the test happened to run against a
+          // production build. Cheap enough (throttled, one string build
+          // every ~20 ticks) to leave on regardless.
+          frameCounterRef.current += 1;
+          const showThisTick = frameCounterRef.current % 20 === 1;
+          if (showThisTick) {
+            const text = `#${frameCounterRef.current} hands=${result.landmarks.length} video=${video.videoWidth}x${video.videoHeight} rs=${video.readyState}`;
+            console.debug(`[try-on] wrist ${text}`);
+            setDebugText(text);
           }
 
           if (!landmarks || !world) {
@@ -138,10 +143,8 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
             landmarks[PINKY_MCP]?.visibility ?? 1,
           );
 
-          if (process.env.NODE_ENV === "development" && frameCounterRef.current % 20 === 1) {
-            setDebugText(
-              (t) => `${t} conf=${confidence.toFixed(2)} (min ${WRIST_MIN_CONFIDENCE})`,
-            );
+          if (showThisTick) {
+            setDebugText((t) => `${t} conf=${confidence.toFixed(2)} (min ${WRIST_MIN_CONFIDENCE})`);
           }
 
           if (confidence < WRIST_MIN_CONFIDENCE) {
