@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { ChevronDown, ChevronUp, Minus, Plus, X } from "lucide-react";
 
@@ -103,14 +103,19 @@ export function TryOnViewer({
   // least once this session, keep the controls available regardless of
   // momentary drops (they only affect a manual override the customer is
   // actively fiddling with anyway).
+  //
+  // Set directly inside the same status-change callback that also updates
+  // trackingStatus (not a separate effect watching trackingStatus) — one
+  // hop instead of two, so there's no window where trackingStatus has
+  // already flipped to "tracking" but this flag hasn't caught up yet.
   const [hasEverTracked, setHasEverTracked] = useState(false);
+  const handleStatusChange = useCallback((status: AnchorStatus) => {
+    setTrackingStatus(status);
+    if (status === "tracking") setHasEverTracked(true);
+  }, []);
 
   const streaming = cameraStatus === "streaming";
   const box = useLetterboxSize(videoRef, streaming);
-
-  useEffect(() => {
-    if (trackingStatus === "tracking") setHasEverTracked(true);
-  }, [trackingStatus]);
 
   function handleClose() {
     stop();
@@ -184,7 +189,7 @@ export function TryOnViewer({
                 enabled={streaming}
                 ukSize={ukSize}
                 adjustment={adjustment}
-                onStatusChange={setTrackingStatus}
+                onStatusChange={handleStatusChange}
                 onDebug={setDebugText}
                 onDistance={setDistanceM}
               />
@@ -208,7 +213,8 @@ export function TryOnViewer({
       )}
       {streaming && (
         <div className="pointer-events-none absolute left-1/2 top-[6.5rem] -translate-x-1/2 rounded bg-black/70 px-2 py-1 font-mono text-[10px] text-white">
-          status={trackingStatus} dist={distanceM != null ? `${distanceM.toFixed(2)}m` : "—"} scale=
+          status={trackingStatus} ever={hasEverTracked ? "Y" : "N"} dist=
+          {distanceM != null ? `${distanceM.toFixed(2)}m` : "—"} scale=
           {adjustment.scale.toFixed(2)}x rotXYZ=
           {[adjustment.rotationX, adjustment.rotationY, adjustment.rotationZ]
             .map((r) => Math.round((r * 180) / Math.PI) % 360)
