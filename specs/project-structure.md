@@ -17,7 +17,7 @@
 | Payments | Stripe-hosted Checkout (redirect flow) |
 | Realtime chat | Supabase Realtime broadcast |
 | AR ("place in room") | WebXR Device API via `@react-three/xr` 6 (hit-test + DOM overlay), Android only |
-| Chatbot backend | Separate FastAPI service (`backend/`, `uv`-managed) — LangGraph + LangChain, `langchain-groq` (Groq LPU inference, not xAI's Grok), SQLAlchemy/asyncpg against the same Supabase Postgres |
+| Chatbot backend | Separate FastAPI service (`backend/`, `uv`-managed) — LangGraph + LangChain, `langchain-groq` (Groq), SQLAlchemy/asyncpg against the same Supabase Postgres |
 
 Path alias: `"@/*": ["./*"]` — every import is root-relative in the Next.js app. The `backend/` Python service is a **separate project** with its own `pyproject.toml`/`uv.lock` and is not part of this import graph.
 

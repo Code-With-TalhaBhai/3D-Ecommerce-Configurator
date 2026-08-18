@@ -10,12 +10,9 @@ class Settings(BaseSettings):
     # (see ../.env DATABASE_URL). The chatbot only ever reads from it.
     database_url: str
 
-    # Groq (fast LPU inference, open-weight models) credentials for the
-    # LangGraph agent's LLM calls. Not to be confused with xAI's "Grok" —
-    # different company, different models. See console.groq.com for keys
-    # and the current model roster (models get deprecated fairly often).
+    # Groq credentials for the LangGraph agent's LLM calls.
     groq_api_key: str = ""
-    groq_model: str = "openai/gpt-oss-120b"
+    groq_model: str = "llama-3.3-70b-versatile"
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
