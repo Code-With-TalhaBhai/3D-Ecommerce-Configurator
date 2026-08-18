@@ -2,16 +2,17 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Minus, Plus, RotateCw, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Minus, Plus, X } from "lucide-react";
 
 import { useCameraStream } from "./use-camera-stream";
-import { TryOnScene } from "./tryon-scene";
+import { IDENTITY_ADJUSTMENT, TryOnScene, type ManualAdjustment } from "./tryon-scene";
 import { SizePicker } from "./size-picker";
 import type { AnchorStatus } from "./anchor";
 import {
   CAMERA_FOV_DEG,
   FOOT_COMFORTABLE_MAX_M,
   FOOT_COMFORTABLE_MIN_M,
+  MANUAL_OFFSET_STEP_M,
   MANUAL_SCALE_STEP,
   WRIST_COMFORTABLE_MAX_M,
   WRIST_COMFORTABLE_MIN_M,
@@ -81,11 +82,20 @@ export function TryOnViewer({
   const [ukSize, setUkSize] = useState(9);
   const [debugText, setDebugText] = useState("");
   const [distanceM, setDistanceM] = useState<number | null>(null);
-  // Manual escape hatch for the auto-computed scale/rotation being wrong for
-  // a specific vendor GLB — see AnchoredModel's extraScale/extraRotationRad
-  // in tryon-scene.tsx for why this exists at all.
-  const [manualScale, setManualScale] = useState(1);
-  const [manualRotationRad, setManualRotationRad] = useState(0);
+  // Manual escape hatch for the auto-computed scale/rotation/position being
+  // wrong for a specific vendor GLB — see ManualAdjustment in
+  // tryon-scene.tsx for why this exists at all, and why it covers all three
+  // rotation axes rather than just one.
+  const [adjustment, setAdjustment] = useState<ManualAdjustment>(IDENTITY_ADJUSTMENT);
+  function bumpScale(dir: 1 | -1) {
+    setAdjustment((a) => ({ ...a, scale: dir > 0 ? a.scale * MANUAL_SCALE_STEP : a.scale / MANUAL_SCALE_STEP }));
+  }
+  function bumpRotation(axis: "rotationX" | "rotationY" | "rotationZ") {
+    setAdjustment((a) => ({ ...a, [axis]: a[axis] + Math.PI / 2 }));
+  }
+  function bumpOffset(dir: 1 | -1) {
+    setAdjustment((a) => ({ ...a, offsetAlongM: a.offsetAlongM + dir * MANUAL_OFFSET_STEP_M }));
+  }
   // Sticky, not the live trackingStatus: gating the manual controls on the
   // live status meant they'd unmount/remount every time confidence briefly
   // dipped below the tracking threshold between frames, making them
@@ -173,8 +183,7 @@ export function TryOnViewer({
                 videoRef={videoRef}
                 enabled={streaming}
                 ukSize={ukSize}
-                manualScale={manualScale}
-                manualRotationRad={manualRotationRad}
+                adjustment={adjustment}
                 onStatusChange={setTrackingStatus}
                 onDebug={setDebugText}
                 onDistance={setDistanceM}
@@ -200,7 +209,11 @@ export function TryOnViewer({
       {streaming && (
         <div className="pointer-events-none absolute left-1/2 top-[6.5rem] -translate-x-1/2 rounded bg-black/70 px-2 py-1 font-mono text-[10px] text-white">
           status={trackingStatus} dist={distanceM != null ? `${distanceM.toFixed(2)}m` : "—"} scale=
-          {manualScale.toFixed(2)}x rot={Math.round((manualRotationRad * 180) / Math.PI) % 360}°
+          {adjustment.scale.toFixed(2)}x rotXYZ=
+          {[adjustment.rotationX, adjustment.rotationY, adjustment.rotationZ]
+            .map((r) => Math.round((r * 180) / Math.PI) % 360)
+            .join(",")}
+          ° off={(adjustment.offsetAlongM * 100).toFixed(1)}cm
         </div>
       )}
 
@@ -226,34 +239,66 @@ export function TryOnViewer({
           {anchor === "foot" && streaming && <SizePicker value={ukSize} onChange={setUkSize} />}
 
           {hasEverTracked && (
-            <div className="flex items-center gap-2 rounded-full bg-black/55 p-1.5 backdrop-blur-md">
-              <span className="pl-2 pr-1 text-[10px] font-medium uppercase tracking-wide text-white/60">
+            <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-black/55 p-2 backdrop-blur-md">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-white/60">
                 Doesn&apos;t look right?
               </span>
-              <button
-                type="button"
-                onClick={() => setManualScale((s) => s / MANUAL_SCALE_STEP)}
-                aria-label="Smaller"
-                className="grid h-8 w-8 place-items-center rounded-full text-white active:bg-white/20"
-              >
-                <Minus className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setManualScale((s) => s * MANUAL_SCALE_STEP)}
-                aria-label="Bigger"
-                className="grid h-8 w-8 place-items-center rounded-full text-white active:bg-white/20"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setManualRotationRad((r) => r + Math.PI / 2)}
-                aria-label="Rotate 90 degrees"
-                className="grid h-8 w-8 place-items-center rounded-full text-white active:bg-white/20"
-              >
-                <RotateCw className="h-3.5 w-3.5" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <span className="px-1 text-[10px] font-medium text-white/50">Size</span>
+                <button
+                  type="button"
+                  onClick={() => bumpScale(-1)}
+                  aria-label="Smaller"
+                  className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white active:bg-white/25"
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => bumpScale(1)}
+                  aria-label="Bigger"
+                  className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white active:bg-white/25"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+
+                <span className="pl-2 pr-1 text-[10px] font-medium text-white/50">Position</span>
+                <button
+                  type="button"
+                  onClick={() => bumpOffset(-1)}
+                  aria-label="Nudge back"
+                  className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white active:bg-white/25"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => bumpOffset(1)}
+                  aria-label="Nudge forward"
+                  className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white active:bg-white/25"
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Three independent axes, not one — a Y-only rotate control
+                  can only reach 4 of the 24 orientations an arbitrarily
+                  authored GLB might actually need. Tap combinations of X/Y/Z
+                  to reach any of them. */}
+              <div className="flex items-center gap-1.5">
+                <span className="px-1 text-[10px] font-medium text-white/50">Rotate</span>
+                {(["rotationX", "rotationY", "rotationZ"] as const).map((axis, i) => (
+                  <button
+                    key={axis}
+                    type="button"
+                    onClick={() => bumpRotation(axis)}
+                    aria-label={`Rotate ${"XYZ"[i]} 90 degrees`}
+                    className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white active:bg-white/25"
+                  >
+                    {"XYZ"[i]}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

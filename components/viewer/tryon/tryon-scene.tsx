@@ -29,32 +29,55 @@ import {
  * matrixAutoUpdate=false + a manual matrix.compose() each frame mirrors the
  * existing hit-test reticle pattern already used in ar-viewer.tsx.
  */
-const LOCAL_Y_AXIS = new THREE.Vector3(0, 1, 0);
+export type ManualAdjustment = {
+  scale: number;
+  /** Rotation (radians) around each of the anchor's own local axes, applied
+   * in X → Y → Z order on top of the auto-computed orientation. A single
+   * Y-only rotate control can only ever reach 4 of the 24 possible
+   * axis-aligned orientations an arbitrarily-authored GLB might actually
+   * need (e.g. a model authored lying face-down needs an X or Z correction,
+   * not Y) — three independent axes give real reach to fix any of them by
+   * combining taps, rather than the customer being stuck cycling a Y-only
+   * control that can never land on the right orientation. */
+  rotationX: number;
+  rotationY: number;
+  rotationZ: number;
+  /** Extra push (meters) along the *tracked* local Y axis (before manual
+   * rotation is applied) — i.e. further "along the forearm" for the wrist
+   * anchor. Separate from WATCH_BACK_OFFSET_M's fixed value because the
+   * anatomical `along` direction (see use-wrist-anchor.ts) depends on the
+   * same worldLandmark coordinate-convention assumption flagged as
+   * unverified — if that assumption is off, both the rotation *and* the
+   * back-offset move together, so this needs to be independently
+   * correctable too. */
+  offsetAlongM: number;
+};
+
+export const IDENTITY_ADJUSTMENT: ManualAdjustment = {
+  scale: 1,
+  rotationX: 0,
+  rotationY: 0,
+  rotationZ: 0,
+  offsetAlongM: 0,
+};
 
 function AnchoredModel({
   getFrame,
   modelScale,
   mirrorX = false,
-  extraScale = 1,
-  extraRotationRad = 0,
+  adjustment,
   children,
 }: {
   getFrame: () => AnchorFrame;
   modelScale: number;
   mirrorX?: boolean;
-  /** Manual scale multiplier on top of the auto-computed modelScale — see
-   * the "manual adjustment" controls in tryon-viewer.tsx. Auto-measuring a
-   * real-world size from an arbitrary vendor GLB (see useMeasuredFootprint)
-   * is a best-effort heuristic, not a guarantee; this is the user's escape
-   * hatch when it's visibly wrong for a given product. */
-  extraScale?: number;
-  /** Manual rotation (radians) around the anchor's own local Y axis, on top
-   * of the auto-computed wrist/foot-relative rotation. Same rationale as
-   * extraScale: we don't know how any given vendor's GLB is authored
-   * (which local axis is "forward", whether it's modeled lying flat for
-   * product photography vs. already "wrist ready"), so the auto rotation
-   * is a best guess the customer can correct. */
-  extraRotationRad?: number;
+  /** Manual escape hatch on top of the auto-computed transform — see
+   * ManualAdjustment. Auto-measuring a real-world size and orientation from
+   * an arbitrary vendor GLB (see useMeasuredFootprint and use-wrist-anchor's
+   * doc comment) is a best-effort heuristic, not a guarantee; this is the
+   * customer's way to correct it when it's visibly wrong for a given
+   * product. */
+  adjustment: ManualAdjustment;
   children: React.ReactNode;
 }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -62,7 +85,9 @@ function AnchoredModel({
     position: new THREE.Vector3(),
     quaternion: new THREE.Quaternion(),
     scale: new THREE.Vector3(1, 1, 1),
+    finalPosition: new THREE.Vector3(),
     finalQuaternion: new THREE.Quaternion(),
+    offsetVector: new THREE.Vector3(),
     initialized: false,
   });
   const visibleRef = useRef(false);
@@ -94,17 +119,24 @@ function AnchoredModel({
       smoothQuaternionTowards(smoothed.current.quaternion, frame.quaternion!, SMOOTHING_ROTATION_SLERP);
     }
 
+    // Position nudge applied in the *tracked* (pre manual-rotation) local
+    // frame — "push further along the forearm" should stay tied to the
+    // anatomical along-axis regardless of how the customer has manually
+    // re-oriented the model to fix its appearance.
+    smoothed.current.offsetVector.set(0, adjustment.offsetAlongM, 0).applyQuaternion(smoothed.current.quaternion);
+    smoothed.current.finalPosition.copy(smoothed.current.position).add(smoothed.current.offsetVector);
+
     // Manual rotation is applied in the anchor's own local space (post-
     // multiply), i.e. "spin the object around its own axis, then place it"
     // — the standard three.js convention for rotating relative to an
     // object's current orientation rather than the world.
     smoothed.current.finalQuaternion
       .copy(smoothed.current.quaternion)
-      .multiply(extraRotationQuaternion(extraRotationRad));
+      .multiply(manualRotationQuaternion(adjustment.rotationX, adjustment.rotationY, adjustment.rotationZ));
 
-    const finalScale = modelScale * extraScale;
+    const finalScale = modelScale * adjustment.scale;
     smoothed.current.scale.set(mirrorX ? -finalScale : finalScale, finalScale, finalScale);
-    group.matrix.compose(smoothed.current.position, smoothed.current.finalQuaternion, smoothed.current.scale);
+    group.matrix.compose(smoothed.current.finalPosition, smoothed.current.finalQuaternion, smoothed.current.scale);
     group.matrixWorldNeedsUpdate = true;
 
     if (!visibleRef.current) {
@@ -120,9 +152,11 @@ function AnchoredModel({
   );
 }
 
+const scratchEuler = new THREE.Euler();
 const scratchRotationQuaternion = new THREE.Quaternion();
-function extraRotationQuaternion(rad: number) {
-  return scratchRotationQuaternion.setFromAxisAngle(LOCAL_Y_AXIS, rad);
+function manualRotationQuaternion(x: number, y: number, z: number) {
+  scratchEuler.set(x, y, z, "XYZ");
+  return scratchRotationQuaternion.setFromEuler(scratchEuler);
 }
 
 /** Measures the styled clone's own footprint to derive a real-world-size
@@ -150,8 +184,7 @@ function WristTryOnScene({
   src,
   videoRef,
   enabled,
-  manualScale,
-  manualRotationRad,
+  adjustment,
   onStatusChange,
   onDebug,
   onDistance,
@@ -159,8 +192,7 @@ function WristTryOnScene({
   src: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   enabled: boolean;
-  manualScale: number;
-  manualRotationRad: number;
+  adjustment: ManualAdjustment;
   onStatusChange?: (status: AnchorStatus) => void;
   onDebug?: (text: string) => void;
   onDistance?: (distanceM: number | null) => void;
@@ -188,12 +220,7 @@ function WristTryOnScene({
     <>
       <ambientLight intensity={0.9} />
       <directionalLight position={[2, 4, 2]} intensity={0.7} />
-      <AnchoredModel
-        getFrame={getFrame}
-        modelScale={modelScale}
-        extraScale={manualScale}
-        extraRotationRad={manualRotationRad}
-      >
+      <AnchoredModel getFrame={getFrame} modelScale={modelScale} adjustment={adjustment}>
         <ForearmOccluder />
         <primitive object={scene} />
       </AnchoredModel>
@@ -211,8 +238,7 @@ function FootTryOnScene({
   videoRef,
   enabled,
   ukSize,
-  manualScale,
-  manualRotationRad,
+  adjustment,
   onStatusChange,
   onDebug,
   onDistance,
@@ -221,8 +247,7 @@ function FootTryOnScene({
   videoRef: React.RefObject<HTMLVideoElement | null>;
   enabled: boolean;
   ukSize: number;
-  manualScale: number;
-  manualRotationRad: number;
+  adjustment: ManualAdjustment;
   onStatusChange?: (status: AnchorStatus) => void;
   onDebug?: (text: string) => void;
   onDistance?: (distanceM: number | null) => void;
@@ -269,21 +294,10 @@ function FootTryOnScene({
           mirrored shoe renders visually inside-out (culled front faces),
           the fix is setting material.side = THREE.DoubleSide on the left
           clone's materials, not a change here. */}
-      <AnchoredModel
-        getFrame={getLeftFrame}
-        modelScale={modelScale}
-        mirrorX
-        extraScale={manualScale}
-        extraRotationRad={manualRotationRad}
-      >
+      <AnchoredModel getFrame={getLeftFrame} modelScale={modelScale} mirrorX adjustment={adjustment}>
         <primitive object={leftScene} />
       </AnchoredModel>
-      <AnchoredModel
-        getFrame={getRightFrame}
-        modelScale={modelScale}
-        extraScale={manualScale}
-        extraRotationRad={manualRotationRad}
-      >
+      <AnchoredModel getFrame={getRightFrame} modelScale={modelScale} adjustment={adjustment}>
         <primitive object={rightScene} />
       </AnchoredModel>
     </>
@@ -296,8 +310,7 @@ export function TryOnScene({
   videoRef,
   enabled,
   ukSize,
-  manualScale,
-  manualRotationRad,
+  adjustment,
   onStatusChange,
   onDebug,
   onDistance,
@@ -307,8 +320,7 @@ export function TryOnScene({
   videoRef: React.RefObject<HTMLVideoElement | null>;
   enabled: boolean;
   ukSize: number;
-  manualScale: number;
-  manualRotationRad: number;
+  adjustment: ManualAdjustment;
   onStatusChange?: (status: AnchorStatus) => void;
   onDebug?: (text: string) => void;
   onDistance?: (distanceM: number | null) => void;
@@ -319,8 +331,7 @@ export function TryOnScene({
         src={src}
         videoRef={videoRef}
         enabled={enabled}
-        manualScale={manualScale}
-        manualRotationRad={manualRotationRad}
+        adjustment={adjustment}
         onStatusChange={onStatusChange}
         onDebug={onDebug}
         onDistance={onDistance}
@@ -333,8 +344,7 @@ export function TryOnScene({
       videoRef={videoRef}
       enabled={enabled}
       ukSize={ukSize}
-      manualScale={manualScale}
-      manualRotationRad={manualRotationRad}
+      adjustment={adjustment}
       onStatusChange={onStatusChange}
       onDebug={onDebug}
       onDistance={onDistance}

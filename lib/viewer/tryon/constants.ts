@@ -29,6 +29,7 @@
  * |                               | (narrow) — the depth range the wrist-distance estimate is trusted within. |
  * | FOOT_COMFORTABLE_MIN/MAX_M    | Same, for the foot distance hint.                                          |
  * | MANUAL_SCALE_STEP             | How much each tap of the manual +/- scale button changes size by.         |
+ * | MANUAL_OFFSET_STEP_M           | How much each tap of the manual position-nudge button moves the model.    |
  */
 
 /** Reference hand width in meters (MCP-5 ↔ MCP-17), used to estimate depth
@@ -101,6 +102,11 @@ export const FOOT_COMFORTABLE_MAX_M = 2.5;
  * authoring quirks, since there's no way to guarantee every vendor-uploaded
  * asset measures cleanly. */
 export const MANUAL_SCALE_STEP = 1.15;
+
+/** Step (meters) per tap of the manual position-nudge control, pushing the
+ * model further along (or back along) the tracked anchor's own local Y axis
+ * — see ManualAdjustment.offsetAlongM in tryon-scene.tsx. */
+export const MANUAL_OFFSET_STEP_M = 0.01;
 
 /** Self-hosted MediaPipe asset paths (never a CDN — see progress-update.md
  * "Self-host the .task model files and the MediaPipe WASM bundle"). */
