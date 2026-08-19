@@ -7,6 +7,7 @@ import { SessionProvider } from "next-auth/react";
 import { makeStore, type AppStore } from "@/store";
 import { hydrateCartFromStorage, subscribeCartToStorage } from "@/store/persistence";
 import { RouteProgress } from "@/components/layout/route-progress";
+import { StoreChatbot } from "@/components/chat/store-chatbot";
 
 export function Providers({ children }: { children: ReactNode }) {
   const storeRef = useRef<AppStore | null>(null);
@@ -28,6 +29,7 @@ export function Providers({ children }: { children: ReactNode }) {
           <RouteProgress />
         </Suspense>
         {children}
+        <StoreChatbot />
       </ReduxProvider>
     </SessionProvider>
   );

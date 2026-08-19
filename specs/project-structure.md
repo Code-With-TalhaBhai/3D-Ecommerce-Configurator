@@ -59,7 +59,7 @@ Route groups (`(name)`) don't appear in URLs but scope layouts. Public-facing un
 
 ### Root layout & global wiring
 - `layout.tsx` — Root layout. Loads Geist (sans + mono) from `next/font/google`, wraps everything in `<Providers>`.
-- `providers.tsx` — Client island. Mounts `SessionProvider` (NextAuth) + `ReduxProvider`, hydrates cart from localStorage and subscribes to writes. Also mounts `<RouteProgress>` inside a `<Suspense>` boundary (needed because RouteProgress calls `useSearchParams`).
+- `providers.tsx` — Client island. Mounts `SessionProvider` (NextAuth) + `ReduxProvider`, hydrates cart from localStorage and subscribes to writes. Also mounts `<RouteProgress>` inside a `<Suspense>` boundary (needed because RouteProgress calls `useSearchParams`), and `<StoreChatbot>` after `{children}` — a global floating widget rendered on every route.
 - `globals.css` — Tailwind v4 import, CSS tokens (background/foreground/muted/border/card/ring, light + dark), font-feature-settings for Geist alternates, custom thin scrollbar, `.bg-grid-fade` utility, and three loader keyframes (`shimmer`, `loader-dot`, `route-progress`).
 - `page.tsx` — Landing page. RSC; renders role-aware nav, gradient-text H1 hero with trust strip, 6-card feature grid, CTA band, footer.
 - `loading.tsx` — Root-level Suspense fallback. Renders `<PageLoader variant="fullscreen">` when a navigation has no deeper loading.tsx to cover it.
@@ -153,7 +153,8 @@ components/
 │   ├── controls-panel.tsx      ← Sectioned panel (Color / Finish / Lighting / Backdrop / Spin / Save snapshot), dispatches patchViewer
 │   └── ar-viewer.tsx           ← WebXR "place in room": hit-test reticle, tap-to-place, drag/pinch/twist gestures to move/scale/rotate; clones the cached GLTF scene and re-applies color/finish/texture from the viewer slice so AR matches the on-page customization
 └── chat/
-    └── product-chat-panel.tsx  ← Initial fetch + Supabase Realtime subscribe; deduped bubbles; textarea send (Enter to send)
+    ├── product-chat-panel.tsx  ← Vendor↔customer chat for one product. Initial fetch + Supabase Realtime subscribe; deduped bubbles; textarea send (Enter to send)
+    └── store-chatbot.tsx       ← Global floating widget (FAB + panel) talking to the separate FastAPI chatbot service directly over `fetch(NEXT_PUBLIC_CHATBOT_URL + "/chat")`; no Supabase, no Redux — local React state only
 ```
 
 All viewer/chat components are `"use client"`. The R3F viewers are always dynamically imported with `ssr: false` from the pages that mount them (avoids SSR'ing WebGL).
@@ -258,7 +259,7 @@ Enums: `Role` (ADMIN / VENDOR / CUSTOMER) · `ProductStatus` (PENDING / APPROVED
 
 ## `backend/` — Chatbot service (separate Python app)
 
-A standalone `uv`-managed FastAPI project, sibling to the Next.js app rather than inside it — LangChain/LangGraph's Python ecosystem is where the tooling actually lives, and this keeps that dependency tree out of the Vercel-deployed Next.js build. Not yet called by the frontend (see progress-update.md's Marketplace Chatbot Follow-ups).
+A standalone `uv`-managed FastAPI project, sibling to the Next.js app rather than inside it — LangChain/LangGraph's Python ecosystem is where the tooling actually lives, and this keeps that dependency tree out of the Vercel-deployed Next.js build. Called by the Next.js app's global `<StoreChatbot>` widget (`components/chat/store-chatbot.tsx`) via a direct cross-origin `fetch`, not a same-origin proxy — see request flow #7 below.
 
 ```
 backend/
@@ -440,6 +441,33 @@ setArOpen(true)
               └── setArOpen(false)  →  <ConfigurableViewer> remounts
 ```
 
+### 7. Asking the store chatbot a question
+
+```
+Any page  (<StoreChatbot> is mounted globally in app/providers.tsx)
+  │
+  ├── tap the floating FAB → panel opens, greeting bubble shown (client-only, not sent to the backend)
+  │
+  ▼ user types a question, hits Enter
+fetch(`${NEXT_PUBLIC_CHATBOT_URL}/chat`, { messages: [...localHistory, newUserMsg] })
+  │   (direct cross-origin call — no Next.js API route in between; the FastAPI
+  │    service's CORSMiddleware already allow-lists the frontend origin)
+  ▼
+backend/app/routers/chat.py  POST /chat
+  ├── converts to LangChain messages
+  └── chat_graph.ainvoke(...)
+        ├── guardrail: classify_topic (structured-output LLM call, ChatGroq)
+        │     └── off-topic → refuse (canned message, no further LLM/DB calls) → END
+        └── on-topic → agent (ReAct, bound to the 5 catalog tools)
+              ├── tool call → ToolNode → parameterized SQL against Supabase
+              │     (search_products / get_product_details / list_categories /
+              │      list_vendors / list_active_promo_codes — all APPROVED-only)
+              └── loops via tools_condition until no more tool calls → END
+  ◀── { reply, on_topic }
+StoreChatbot appends the assistant bubble; conversation stays in local React
+state only (no Redux, no persistence) until the page is reloaded.
+```
+
 ---
 
 ## Conventions you'll see repeated
@@ -457,4 +485,4 @@ setArOpen(true)
 - **Cart persistence key**: `3dmkt:cart:v1` (versioned, so a future schema bump can wipe and rehydrate cleanly).
 - **AR is WebXR-only and feature-detected, never shown-and-broken**: the "Place In Room" entry point on `/products/[slug]` only renders after `navigator.xr?.isSessionSupported("immersive-ar")` resolves `true` — Android Chrome/Edge on ARCore-class hardware today, hidden everywhere else (iOS Safari has no WebXR support). `@react-three/xr` only loads once that button is actually clicked (`dynamic(..., { ssr: false })`), so unsupported devices pay zero extra bundle cost.
 - **Loading feedback is two-layered**: every navigable segment gets a `loading.tsx` (segment-level Suspense fallback — skeleton when chrome is preserved, `<PageLoader>` when the page replaces full-screen) **and** the globally mounted `<RouteProgress>` fires the moment a same-origin link is clicked (covers Links, `router.push`/`router.replace`, and back/forward). Re-use `Spinner` for in-button waits, `Skeleton` for inline placeholders, `PageLoader` for full-screen / full-section waits.
-- **The chatbot backend is a separate app, not a Next.js API route**: `backend/` has its own `pyproject.toml`/`uv.lock` and runs as its own process (`uv run fastapi dev`). It reuses the Next.js app's `DATABASE_URL` (same Supabase Postgres) but nothing else is shared — no import path crosses between the two. Any new chatbot capability belongs in `backend/app/agent/`, not in `app/api/`.
+- **The chatbot backend is a separate app, not a Next.js API route**: `backend/` has its own `pyproject.toml`/`uv.lock` and runs as its own process (`uv run fastapi dev`). It reuses the Next.js app's `DATABASE_URL` (same Supabase Postgres) but nothing else is shared — no import path crosses between the two. Any new chatbot capability belongs in `backend/app/agent/`, not in `app/api/`. The frontend calls it directly (`components/chat/store-chatbot.tsx` → `NEXT_PUBLIC_CHATBOT_URL`), not through a same-origin proxy — the backend's own CORS middleware handles cross-origin access.
