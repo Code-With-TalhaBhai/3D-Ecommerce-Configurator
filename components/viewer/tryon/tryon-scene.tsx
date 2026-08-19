@@ -180,6 +180,29 @@ function useMeasuredFootprint(scene: THREE.Object3D) {
   }, [scene]);
 }
 
+/**
+ * Where the model's own authored origin sits relative to its geometric
+ * center — negated, so rendering the model at this position re-centers its
+ * bounding box on the parent group's local origin.
+ *
+ * Without this, the model renders whatever offset the GLB happens to have
+ * been authored with (e.g. pivoted at a corner, or at the strap's clasp
+ * rather than the case center) — the AnchoredModel's tracked position
+ * therefore correctly represents "where the wrist/foot is", but the visible
+ * model can sit noticeably away from that point purely because of the
+ * asset's own pivot, independent of and compounding on top of any
+ * depth/rotation issues. Centering the bounding box is a deterministic,
+ * asset-agnostic default: "the object is centered on the tracked point"
+ * rather than "wherever this particular file happened to be pivoted".
+ */
+function useModelPivotOffset(scene: THREE.Object3D) {
+  return useMemo(() => {
+    const box = new THREE.Box3().setFromObject(scene);
+    if (box.isEmpty()) return new THREE.Vector3();
+    return box.getCenter(new THREE.Vector3()).negate();
+  }, [scene]);
+}
+
 function WristTryOnScene({
   src,
   videoRef,
@@ -215,6 +238,7 @@ function WristTryOnScene({
 
   const measuredDiameter = useMeasuredFootprint(scene);
   const modelScale = measuredDiameter > 0 ? WATCH_CASE_DIAMETER_M / measuredDiameter : 1;
+  const pivotOffset = useModelPivotOffset(scene);
 
   return (
     <>
@@ -222,7 +246,7 @@ function WristTryOnScene({
       <directionalLight position={[2, 4, 2]} intensity={0.7} />
       <AnchoredModel getFrame={getFrame} modelScale={modelScale} adjustment={adjustment}>
         <ForearmOccluder />
-        <primitive object={scene} />
+        <primitive object={scene} position={pivotOffset} />
       </AnchoredModel>
     </>
   );
@@ -278,6 +302,9 @@ function FootTryOnScene({
 
   const measuredLength = useMeasuredFootprint(scene);
   const modelScale = measuredLength > 0 ? footLengthM / measuredLength : 1;
+  // Computed once from the shared source scene — leftScene/rightScene are
+  // geometric clones of it, so the same local-space offset re-centers both.
+  const pivotOffset = useModelPivotOffset(scene);
 
   const getLeftFrame = useCallback(() => framesRef.current[0], [framesRef]);
   const getRightFrame = useCallback(() => framesRef.current[1], [framesRef]);
@@ -295,10 +322,10 @@ function FootTryOnScene({
           the fix is setting material.side = THREE.DoubleSide on the left
           clone's materials, not a change here. */}
       <AnchoredModel getFrame={getLeftFrame} modelScale={modelScale} mirrorX adjustment={adjustment}>
-        <primitive object={leftScene} />
+        <primitive object={leftScene} position={pivotOffset} />
       </AnchoredModel>
       <AnchoredModel getFrame={getRightFrame} modelScale={modelScale} adjustment={adjustment}>
-        <primitive object={rightScene} />
+        <primitive object={rightScene} position={pivotOffset} />
       </AnchoredModel>
     </>
   );
