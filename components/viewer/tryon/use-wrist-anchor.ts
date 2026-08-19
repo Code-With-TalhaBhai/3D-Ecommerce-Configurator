@@ -79,8 +79,21 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
         if (cancelled) return;
         setStatus("searching");
 
+        // BUG FIXED: this previously compared against frameRef.current.status
+        // — but that ref is always mutated to equal `next` on the line right
+        // before this runs (see the "tracking"/"searching"/"lost" branches
+        // below), so the guard compared new-value against new-value and was
+        // always true, meaning setStatus(next) never actually fired past the
+        // very first "loading" → "searching" transition above. The 3D
+        // rendering still worked (AnchoredModel reads frameRef directly,
+        // not this React state), but every React-facing consumer — hint
+        // text, and critically the "has ever tracked" flag that reveals the
+        // manual X/Y/Z adjustment controls — was permanently stuck. Compare
+        // against React's own previous state via the functional updater
+        // form instead, matching the (correct) pattern use-foot-anchor.ts
+        // already used.
         const setTrackedStatus = (next: AnchorStatus) => {
-          if (frameRef.current.status !== next) setStatus(next);
+          setStatus((s) => (s === next ? s : next));
         };
 
         const scheduleNext = () => {
