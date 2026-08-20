@@ -12,8 +12,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Product Categories (cross-sprint) — complete
 - Per-Part Color Customization (cross-sprint, configurator) — complete
 - Augmented Reality Place-in-Room (cross-sprint, configurator) — complete
-- Order Celebration Effect (cross-sprint, checkout) — complete
-- Virtual Try-On, wrist (watches) + foot (shoes) (cross-sprint, configurator) — in progress (implementation drafted, pending on-device verification)
+- Virtual Try-On, wrist (watches) + foot (shoes) (cross-sprint, configurator) — complete, not yet device-verified
 
 ## Current Goal
 - Sprint 11-12 (Testing & Polish: E2E tests, performance benchmarking, accessibility audit, deployment) — not started
@@ -219,7 +218,7 @@ Goal: let vendors classify each product under a category and let customers filte
   - **Scene isolation**: `useGLTF` caches the parsed GLTF scene by URL, and the on-page `ConfigurableViewer` (still mounted behind the full-screen AR overlay, though hidden — see below) mutates that shared scene's mesh materials in place. The AR component clones the scene (`gltf.scene.clone(true)`) before re-traversing and upgrading materials, so the two viewers never fight over the same material instances. `product-configurator.tsx` also stops rendering `ConfigurableViewer` entirely while `arOpen` (`!arOpen &&` guard) — avoids a second live WebGL context competing with the AR session on mobile GPUs, on top of the scene-clone isolation.
   - **Floor-anchored placement**: GLB authoring pivots vary (centered, base-at-origin, etc.), so the AR scene builder computes a `THREE.Box3` over the cloned scene once and offsets it by `-box.min.y` inside the placed group — the model's visual base always rests on the tapped surface regardless of how the source asset was modeled.
   - **Shared material helpers extracted** to `lib/viewer/material.ts` (`FINISH_MAP`, `copyMaterialSafely`, `upgradeToPhysical`, `derivePartId`) — previously private to `configurable-viewer.tsx`. `ConfigurableViewer`'s own behavior is unchanged (pure relocation, verified by type-check + build); `ARViewer` imports the same table so a "Matte" pick, say, resolves to the identical roughness/metalness/clearcoat numbers in both the on-page viewer and AR. `derivePartId` in particular has to produce byte-identical keys to what `ConfigurableViewer` dispatches via `setParts` — both derive `name:${materialName.toLowerCase()}` (falling back to `mesh:${uuid}:${index}`) — otherwise `viewer.partColors[partId]` lookups in AR would silently miss.
-  - **Feature detection, not a try-and-fail button**: checks `navigator.xr?.isSessionSupported("immersive-ar")` in a `useEffect` on mount and only renders the "Place In Room" pill (top-right of the viewer frame, shown once `modelReady`) when it resolves `true`. Only that one-line check runs eagerly — `@react-three/xr` and the rest of `ar-viewer.tsx` load on demand through the existing `dynamic(..., { ssr: false })` pattern already used for the other viewer components, so devices that can't do AR (all of iOS today) pay zero extra bundle cost. **Updated 2026-08-16**: this check, the button, and the portal now live in `components/viewer/ar-launcher.tsx` rather than directly in `product-configurator.tsx` — see Feature 98 below. `ar-viewer.tsx`'s own runtime behavior is unchanged.
+  - **Feature detection, not a try-and-fail button**: checks `navigator.xr?.isSessionSupported("immersive-ar")` in a `useEffect` on mount and only renders the "Place In Room" pill (top-right of the viewer frame, shown once `modelReady`) when it resolves `true`. Only that one-line check runs eagerly — `@react-three/xr` and the rest of `ar-viewer.tsx` load on demand through the existing `dynamic(..., { ssr: false })` pattern already used for the other viewer components, so devices that can't do AR (all of iOS today) pay zero extra bundle cost. **Updated 2026-08-16**: this check, the button, and the portal now live in `components/viewer/ar-launcher.tsx` rather than directly in `product-configurator.tsx` — see Feature 96 below. `ar-viewer.tsx`'s own runtime behavior is unchanged.
   - `ARViewer` mounts through `createPortal(..., document.body)`, now issued from `ar-launcher.tsx`, so its `fixed inset-0` overlay can't be clipped by any ancestor that happens to establish a new containing block.
 
 ### Virtual Try-On, wrist (watches) + foot (shoes) (cross-sprint)
@@ -239,13 +238,9 @@ Goal: a second AR mode for products that don't suit "place a life-size copy on t
   - **Lazy-loaded, bundle-isolated**: `@mediapipe/tasks-vision` is only ever imported from files under `components/viewer/tryon/` and `lib/viewer/tryon/`, and `ARLauncher` only mounts `TryOnViewer` via `next/dynamic(..., { ssr:false })` — so the multi-MB package and model files are fetched only once a customer on an eligible product actually taps "Try On", never on page load and never at all for non-try-on categories.
   - All tunable constants (`PALM_WIDTH_M`, `WATCH_BACK_OFFSET_M`, `WATCH_CASE_DIAMETER_M`, `CAMERA_FOV_DEG`, UK-size reference/step, confidence thresholds, stable-tracking duration, smoothing factors) live in `lib/viewer/tryon/constants.ts` with a doc-comment table mapping each one to the visual symptom it fixes.
 
-### Order Celebration Effect (cross-sprint)
-
-- Feature 100: Checkout success confetti — `app/checkout/success/order-confetti.tsx` is a client island (same pattern as `cart-clearer.tsx`) that fires a `canvas-confetti` burst once on mount of `/checkout/success` (real-order branch only, not the "couldn't find that order" fallback): two brief side-cannon streams from the bottom corners plus one centered burst, all in the existing zinc palette so it stays on-brand rather than introducing rainbow confetti. Skips entirely when `prefers-reduced-motion: reduce` is set. `canvas-confetti` + `@types/canvas-confetti` added as dependencies (~3 KB gzipped, canvas-based, no WebGL/Three.js involvement — independent of the product viewer stack).
-
 ## In Progress
 
-- Virtual Try-On, wrist (watches) + foot (shoes) (cross-sprint, configurator) — code drafted (Features 96-99, see Completed section below), not yet verified on a physical device. Several math steps (notably the foot-size-to-real-length generalization and the mirrored-left-foot face-culling direction) are flagged as assumptions pending that verification pass.
+- None.
 
 ## Next Up
 
