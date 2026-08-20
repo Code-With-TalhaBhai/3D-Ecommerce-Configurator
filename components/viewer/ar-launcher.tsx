@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { ScanLine } from "lucide-react";
+import { isMobileDevice } from "@/lib/viewer/is-mobile-device";
 
 const ARViewer = dynamic(() => import("@/components/viewer/ar-viewer").then((m) => m.ARViewer), { ssr: false });
 const TryOnViewer = dynamic(() => import("@/components/viewer/tryon/tryon-viewer").then((m) => m.TryOnViewer), {
@@ -17,7 +18,9 @@ type Category = { tryOnAnchor: "WRIST" | "FOOT" | null };
  * exactly one primary mode based on the product's category — never both
  * offered up front:
  *   - category.tryOnAnchor set (WRIST/FOOT) → "Try On" (camera-landmark
- *     virtual try-on, gated on getUserMedia support)
+ *     virtual try-on, gated on getUserMedia support AND a mobile-device
+ *     check — desktop/laptop webcams pass getUserMedia too, but try-on
+ *     only makes sense worn against a body via a handheld rear camera)
  *   - category.tryOnAnchor null → "Place In Room" (existing WebXR flow,
  *     gated on navigator.xr immersive-ar support, unchanged behavior)
  *
@@ -41,6 +44,7 @@ export function ARLauncher({
   const glbUrl = product.glbUrl;
 
   const [cameraSupported, setCameraSupported] = useState(false);
+  const [mobileDevice, setMobileDevice] = useState(false);
   const [xrSupported, setXrSupported] = useState(false);
 
   const primaryMode: "tryon" | "room" = tryOnAnchor ? "tryon" : "room";
@@ -52,6 +56,7 @@ export function ARLauncher({
 
   useEffect(() => {
     setCameraSupported(typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia);
+    setMobileDevice(isMobileDevice());
   }, []);
 
   // Always probed, even when the category is try-on — this is the only
@@ -84,7 +89,8 @@ export function ARLauncher({
 
   if (!glbUrl) return null;
 
-  const canShowButton = modelReady && !open && (primaryMode === "tryon" ? cameraSupported : xrSupported);
+  const canShowButton =
+    modelReady && !open && (primaryMode === "tryon" ? cameraSupported && mobileDevice : xrSupported);
 
   return (
     <>

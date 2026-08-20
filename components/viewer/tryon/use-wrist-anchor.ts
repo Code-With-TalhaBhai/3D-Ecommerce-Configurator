@@ -5,7 +5,13 @@ import * as THREE from "three";
 
 import { getHandLandmarker } from "@/lib/viewer/tryon/landmarker-loader";
 import { estimateDepthM, focalLengthPx, toThreeDirection, unprojectLandmark } from "@/lib/viewer/tryon/camera-math";
-import { CAMERA_FOV_DEG, PALM_WIDTH_M, WATCH_BACK_OFFSET_M, WRIST_MIN_CONFIDENCE } from "@/lib/viewer/tryon/constants";
+import {
+  CAMERA_FOV_DEG,
+  PALM_WIDTH_M,
+  WATCH_BACK_OFFSET_M,
+  WRIST_MIN_CONFIDENCE,
+  WRIST_SURFACE_OFFSET_M,
+} from "@/lib/viewer/tryon/constants";
 import { type AnchorFrame, type AnchorStatus, idleAnchorFrame } from "@/components/viewer/tryon/anchor";
 
 // HandLandmarker landmark indices.
@@ -201,6 +207,14 @@ export function useWristAnchor(videoRef: React.RefObject<HTMLVideoElement | null
           const aspect = video.videoWidth / video.videoHeight;
           const position = unprojectLandmark(wristLandmark.x, wristLandmark.y, depthM, CAMERA_FOV_DEG, aspect);
           position.addScaledVector(along, -WATCH_BACK_OFFSET_M);
+          // The wrist landmark sits on the joint's skeletal centerline, not
+          // its skin surface — without this, the watch case renders centered
+          // through the real arm rather than resting on top of it (reads as
+          // "floating" once ForearmOccluder depth-culls the half that's
+          // behind the real arm). Push it out along the palm's normal onto
+          // the surface. See WRIST_SURFACE_OFFSET_M for the flagged-assumption
+          // caveat on sign/magnitude.
+          position.addScaledVector(palmNormal, WRIST_SURFACE_OFFSET_M);
 
           frameRef.current = { position, quaternion, scale: 1, confidence, status: "tracking" };
           setTrackedStatus("tracking");

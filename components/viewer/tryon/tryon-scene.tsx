@@ -51,6 +51,14 @@ export type ManualAdjustment = {
    * back-offset move together, so this needs to be independently
    * correctable too. */
   offsetAlongM: number;
+  /** Extra push (meters) along the *tracked* local Z axis (palmNormal for
+   * the wrist anchor) — "out of the arm, onto its surface". Mirrors
+   * WRIST_SURFACE_OFFSET_M's auto-applied value for the same reason
+   * offsetAlongM mirrors WATCH_BACK_OFFSET_M: the sign/magnitude of the
+   * auto value is a flagged, unverified assumption, so this is the
+   * customer-facing escape hatch if the watch still reads as floating off
+   * (or sunk into) the wrist after the auto offset. */
+  offsetOutM: number;
 };
 
 export const IDENTITY_ADJUSTMENT: ManualAdjustment = {
@@ -59,6 +67,7 @@ export const IDENTITY_ADJUSTMENT: ManualAdjustment = {
   rotationY: 0,
   rotationZ: 0,
   offsetAlongM: 0,
+  offsetOutM: 0,
 };
 
 function AnchoredModel({
@@ -120,10 +129,13 @@ function AnchoredModel({
     }
 
     // Position nudge applied in the *tracked* (pre manual-rotation) local
-    // frame — "push further along the forearm" should stay tied to the
-    // anatomical along-axis regardless of how the customer has manually
-    // re-oriented the model to fix its appearance.
-    smoothed.current.offsetVector.set(0, adjustment.offsetAlongM, 0).applyQuaternion(smoothed.current.quaternion);
+    // frame — "push further along the forearm" / "push further onto the
+    // surface" should stay tied to the anatomical along/palmNormal axes
+    // regardless of how the customer has manually re-oriented the model to
+    // fix its appearance.
+    smoothed.current.offsetVector
+      .set(0, adjustment.offsetAlongM, adjustment.offsetOutM)
+      .applyQuaternion(smoothed.current.quaternion);
     smoothed.current.finalPosition.copy(smoothed.current.position).add(smoothed.current.offsetVector);
 
     // Manual rotation is applied in the anchor's own local space (post-
