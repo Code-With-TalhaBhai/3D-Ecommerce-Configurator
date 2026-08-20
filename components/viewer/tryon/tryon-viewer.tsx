@@ -96,6 +96,9 @@ export function TryOnViewer({
   function bumpOffset(dir: 1 | -1) {
     setAdjustment((a) => ({ ...a, offsetAlongM: a.offsetAlongM + dir * MANUAL_OFFSET_STEP_M }));
   }
+  function bumpOffsetOut(dir: 1 | -1) {
+    setAdjustment((a) => ({ ...a, offsetOutM: a.offsetOutM + dir * MANUAL_OFFSET_STEP_M }));
+  }
   // Sticky, not the live trackingStatus: gating the manual controls on the
   // live status meant they'd unmount/remount every time confidence briefly
   // dipped below the tracking threshold between frames, making them
@@ -219,7 +222,8 @@ export function TryOnViewer({
           {[adjustment.rotationX, adjustment.rotationY, adjustment.rotationZ]
             .map((r) => Math.round((r * 180) / Math.PI) % 360)
             .join(",")}
-          ° off={(adjustment.offsetAlongM * 100).toFixed(1)}cm
+          ° off={(adjustment.offsetAlongM * 100).toFixed(1)}cm out=
+          {(adjustment.offsetOutM * 100).toFixed(1)}cm
         </div>
       )}
 
@@ -285,6 +289,34 @@ export function TryOnViewer({
                 >
                   <ChevronUp className="h-3.5 w-3.5" />
                 </button>
+
+                {anchor === "wrist" && (
+                  <>
+                    {/* Fixes the specific "floating above the wrist" report:
+                        pushes the model in/out along the wrist's surface
+                        normal, on top of the auto-applied
+                        WRIST_SURFACE_OFFSET_M — that auto value's direction
+                        is a flagged, unverified guess, so this is the
+                        on-device way to correct it without a redeploy. */}
+                    <span className="pl-2 pr-1 text-[10px] font-medium text-white/50">Rest on</span>
+                    <button
+                      type="button"
+                      onClick={() => bumpOffsetOut(-1)}
+                      aria-label="Sink into wrist"
+                      className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white active:bg-white/25"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => bumpOffsetOut(1)}
+                      aria-label="Lift off wrist"
+                      className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white active:bg-white/25"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Three independent axes, not one — a Y-only rotate control

@@ -11,6 +11,12 @@
  * |                               | too small/far, lower it if it renders too large/close.                    |
  * | WATCH_BACK_OFFSET_M           | Watch sits on the palm instead of the wrist, or floats past the wrist —   |
  * |                               | distance the anchor is pushed back along the hand's -along axis.          |
+ * | WRIST_SURFACE_OFFSET_M        | Watch renders centered through the arm / floats above the wrist instead   |
+ * |                               | of resting on its surface — the wrist landmark is a skeletal centerline,  |
+ * |                               | not a skin surface, so without this the model straddles the real arm and  |
+ * |                               | whatever isn't depth-culled by ForearmOccluder reads as hovering nearby   |
+ * |                               | rather than worn. Push distance along the hand's palmNormal axis — flip   |
+ * |                               | the sign if the watch sinks into the arm / appears on the wrong side.     |
  * | WATCH_CASE_DIAMETER_M         | Watch renders at the wrong real-world size on the wrist (fixed default,   |
  * |                               | no per-product override — see progress-update.md).                       |
  * | CAMERA_FOV_DEG                | Depth math and the transparent try-on <PerspectiveCamera> must agree on   |
@@ -39,6 +45,18 @@ export const PALM_WIDTH_M = 0.082;
 /** How far back (meters, along -along) the watch anchor is pushed from the
  * wrist landmark so the case sits on the wrist rather than the palm. */
 export const WATCH_BACK_OFFSET_M = 0.035;
+
+/** How far (meters, along palmNormal) the watch anchor is pushed off the
+ * wrist's skeletal centerline onto its skin surface. The HandLandmarker
+ * wrist joint sits roughly on the wrist's central axis, not its surface —
+ * without this offset the watch case renders straddling the real arm
+ * (roughly average wrist radius: ~16cm circumference / 2π ≈ 2.5cm, biased
+ * down slightly since palmNormal's exact sign/magnitude alignment with "the
+ * visible top of the wrist" is unverified on-device). Direction is flagged
+ * as an assumption — see toThreeDirection's own flagged Y/Z convention,
+ * which this inherits — flip the sign if the watch sinks into the arm
+ * instead of resting on it. */
+export const WRIST_SURFACE_OFFSET_M = 0.02;
 
 /** Fixed default watch case diameter (meters) used to scale every watch GLB
  * to real-world size. No per-product override — see the "Watch scale
