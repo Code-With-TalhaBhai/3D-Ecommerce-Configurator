@@ -12,14 +12,9 @@ class Settings(BaseSettings):
 
     # Groq credentials for the LangGraph agent's LLM calls.
     groq_api_key: str = ""
-    groq_model: str = "openai/gpt-oss-120b"
+    groq_model: str
 
-    cors_origins: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-    ]
+    cors_origins: list[str]
 
 
 @lru_cache
