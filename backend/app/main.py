@@ -6,6 +6,7 @@ from app.routers.chat import router as chat_router
 
 settings = get_settings()
 
+# uv run python -m uvicorn app.main:app --reload
 app = FastAPI(title="Marketplace Chatbot API")
 
 app.add_middleware(

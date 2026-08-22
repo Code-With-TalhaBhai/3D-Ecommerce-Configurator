@@ -2,11 +2,14 @@
 
 import { Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const CHATBOT_URL = process.env.NEXT_PUBLIC_CHATBOT_URL ?? "http://localhost:8000";
+
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -66,7 +69,7 @@ export function StoreChatbot() {
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
       {open && (
-        <section className="flex h-[520px] w-[380px] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-xl shadow-zinc-900/10 dark:border-zinc-800/80 dark:bg-zinc-900 dark:shadow-none">
+        <section className="flex h-130 w-95 max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-xl shadow-zinc-900/10 dark:border-zinc-800/80 dark:bg-zinc-900 dark:shadow-none">
           <header className="flex items-center gap-2.5 border-b border-zinc-200/80 px-4 py-3.5 dark:border-zinc-800/80">
             <span className="grid h-7 w-7 place-items-center rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
               <Sparkles className="h-3.5 w-3.5" />
@@ -157,7 +160,35 @@ function Bubble({ message }: { message: ChatMessage }) {
             : "rounded-bl-md bg-white text-zinc-900 ring-1 ring-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800/80 dark:shadow-none",
         )}
       >
-        <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+        {self ? (
+          <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+        ) : (
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p: ({ children }) => <p className="mb-2 last:mb-0 break-words leading-relaxed">{children}</p>,
+              ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+              ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+              li: ({ children }) => <li className="break-words">{children}</li>,
+              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+              code: ({ children }) => (
+                <code className="rounded bg-zinc-100 px-1 py-0.5 text-[0.9em] dark:bg-zinc-800">{children}</code>
+              ),
+              a: ({ children, href }) => (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  {children}
+                </a>
+              ),
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
+        )}
       </div>
     </div>
   );
